@@ -1,0 +1,6 @@
+{
+  "name": "KIE1004 Smart Multi-Space Parking Blueprint v3.0",
+  "description": "Interactive LaTeX and Material 3 engineering blueprint, 3-bay ultrasonic sensor simulator, recalculated 20-pin schematic, electrical budget, BOM, and Arduino C++ firmware for the KIE1004 Smart Multi-Space Parking Assistance System.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

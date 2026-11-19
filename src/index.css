@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Cap font weights globally to 500 (thin/light/regular/medium Inter aesthetic) */
+  --font-weight-semibold: 500;
+  --font-weight-bold: 500;
+  --font-weight-extrabold: 500;
+
+  /* Google Material Design 3 Dense Dashboard Tonal Tokens */
+  --color-m3-canvas: #F4F6F9;
+  --color-m3-surface: #FFFFFF;
+  --color-m3-surface-low: #F8FAFD;
+  --color-m3-surface-container: #EDF2FA;
+  --color-m3-surface-high: #E1E8F5;
+  --color-m3-outline: #C4C7C5;
+  --color-m3-outline-variant: #DADCE0;
+  --color-m3-on-surface: #1F1F1F;
+  --color-m3-on-surface-variant: #444746;
+  --color-m3-primary: #0B57D0;
+  --color-m3-primary-hover: #0842A0;
+  --color-m3-primary-container: #D3E3FD;
+  --color-m3-on-primary-container: #041E49;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  html, body {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    background-color: var(--color-m3-canvas);
+    color: var(--color-m3-on-surface);
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, .latex-heading {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  strong, b, th {
+    font-weight: 500;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Dense LaTeX Booktabs Engineering Tables (Sharp Material 3 Edges) */
+.booktabs-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 1.5px solid #1F1F1F;
+  border-bottom: 1.5px solid #1F1F1F;
+}
+
+.booktabs-table thead tr {
+  border-bottom: 1px solid #5F6368;
+  background-color: #F8FAFD;
+}
+
+.booktabs-table tbody tr {
+  border-bottom: 1px solid #E8EAED;
+}
+
+.booktabs-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* LaTeX Mathematical Formula Styling rendered in Inter */
+.latex-math {
+  font-family: "Inter", sans-serif;
+  font-weight: 300;
+  font-style: italic;
+  letter-spacing: 0.01em;
+}
+
+.latex-math var {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.latex-math .op {
+  font-style: normal;
+  font-weight: 300;
+  padding: 0 0.2em;
+}
+
+/* Authentic Sharp-Bezel 16x2 Character LCD Screen */
+.lcd-screen {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  background: linear-gradient(180deg, #163327 0%, #10261D 100%);
+  color: #B9F6CA;
+  text-shadow: 0 0 4px rgba(185, 246, 202, 0.28);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.lcd-screen-overstay {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  background: linear-gradient(180deg, #3A1616 0%, #280E0E 100%);
+  color: #FFCDD2;
+  text-shadow: 0 0 4px rgba(255, 205, 210, 0.35);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Sharp Material 3 Range Slider */
+input[type="range"].m3-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 0;
+  background: #D3E3FD;
+  outline: none;
+}
+
+input[type="range"].m3-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: #0B57D0;
+  border: 1.5px solid #FFFFFF;
+  box-shadow: 0 1px 3px rgba(11, 87, 208, 0.4);
+  cursor: pointer;
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+input[type="range"].m3-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+
+input[type="range"].m3-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(11, 87, 208, 0.25);
+}
+
+/* Subtle Thin Dashboard Scrollbar */
+.dash-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dash-scroll::-webkit-scrollbar-track {
+  background: #F4F6F9;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb {
+  background: #C4C7C5;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9AA0A6;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #FFFFFF !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
