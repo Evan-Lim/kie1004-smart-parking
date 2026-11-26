@@ -77,8 +77,8 @@ const NAV_TABS: NavTabItem[] = [
   {
     id: 'schematic',
     label: 'Schematic & Pins',
-    meta: '20/20',
-    sectionTitle: '20-Pin Arduino Uno Schematic & Shared I2C Bus',
+    meta: '20/20+0x24',
+    sectionTitle: '20-Pin Arduino Uno + PCF8574 (0x24) 3-Buzzer Schematic',
     icon: Cpu,
   },
   {
@@ -142,7 +142,7 @@ export default function App() {
                 KIE1004 Smart Parking
               </div>
               <div className="text-[10px] font-mono text-[#1A73E8] truncate">
-                REV v3.0 · ARDUINO UNO
+                REV v3.1 · UNO + 0x24
               </div>
             </div>
 
@@ -240,7 +240,7 @@ export default function App() {
           </div>
           <div className="flex justify-between">
             <span>Outputs</span>
-            <span className="text-[#202124]">9 LED · 3 LCD · A3</span>
+            <span className="text-[#202124]">9 LED · 3 LCD · 3 BZ</span>
           </div>
           <div className="flex justify-between">
             <span>Assignment</span>
@@ -248,7 +248,7 @@ export default function App() {
           </div>
           <div className="flex justify-between">
             <span>Default Kit</span>
-            <span className="text-[#137333]">RM 69.70</span>
+            <span className="text-[#137333]">RM 76.70</span>
           </div>
         </div>
       </aside>

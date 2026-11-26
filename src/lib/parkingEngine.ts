@@ -1,6 +1,7 @@
 /**
  * Pure TypeScript simulation & engineering calculation engine for
- * KIE1004 Smart Multi-Space Parking System (v3.0 — 3x I2C LCDs, 5s Stationary Hold, Overstay Buzzer).
+ * KIE1004 Smart Multi-Space Parking System (v3.1 — 3x I2C LCDs, 5s Stationary Hold,
+ * 3x Independent Passive Buzzers via Pin A3 Tone Bus + 2N2222 Buffer + PCF8574 0x24).
  * Mirrors the exact Arduino Uno R3 ATmega328P firmware semantics.
  */
 
@@ -25,8 +26,15 @@ export const ENGINEERING_CONSTANTS = {
   LED_VF_GREEN: 2.2,
   ATMEGA_MAX_VCC_MA: 200,
   ATMEGA_REC_PIN_MA: 20,
+  PCF8574_MAX_PKG_MA: 80,
+  NPN_2N2222_MAX_IC_MA: 600,
   USB_POLY_MAX_MA: 500,
   I2C_ADDRESSES: ['0x27', '0x26', '0x25'] as const,
+  PCF8574_BUZZER_ADDRESS: '0x24' as const,
+  PCF8574_BUZZER_PINS: ['P0', 'P1', 'P2'] as const,
+  BUZZER_FREQ_DANGER_HZ: 2500,
+  BUZZER_FREQ_OVERSTAY_HZ: 1800,
+  BUZZER_FREQ_MIXED_HZ: 2000,
 } as const;
 
 export type DistanceZone = 'EMPTY' | 'SAFE' | 'CAUTION' | 'DANGER';
@@ -85,12 +93,32 @@ export interface LedOutputs {
   modeLabel: string;
 }
 
-export interface BuzzerStatus {
-  active: boolean;
-  overstayBayNumbers: number[];
-  freqHz: number;
+export type BayBuzzerMode = 'SILENT' | 'DANGER' | 'OVERSTAY';
+
+export interface BayBuzzerState {
+  bayIndex: number;
+  bayNumber: number;
+  pcfPin: 'P0' | 'P1' | 'P2';
+  bitWeight: 1 | 2 | 4;
+  mode: BayBuzzerMode;
+  isAlerting: boolean; // True whenever Danger or Overstay condition is active
+  isGateLow: boolean; // Active-LOW PCF8574 output pin (true = LOW = sounding right now)
   cadenceLabel: string;
-  toneHigh: boolean;
+}
+
+export interface BuzzerBusStatus {
+  pcf8574Address: '0x24';
+  bays: BayBuzzerState[];
+  anyAlerting: boolean;
+  anySoundingNow: boolean;
+  activeSoundingCount: number;
+  dangerBayNumbers: number[];
+  overstayBayNumbers: number[];
+  carrierFreqHz: number; // 2500 (Danger-only), 1800 (Overstay-only), 2000 (Mixed), 0 (Idle)
+  carrierModeLabel: string;
+  byteMask: number; // 255 (0xFF all OFF) down to 248 (0xF8 all 3 ON)
+  byteHex: string; // e.g. '0xFF', '0xFE', '0xF8'
+  byteBinary: string; // e.g. '11111111'
 }
 
 export interface ElectricalBudgetResult {
@@ -99,13 +127,21 @@ export interface ElectricalBudgetResult {
   allNineLedsMa: number;
   activeLedsMa: number;
   mcuCoreMa: number;
-  buzzerMa: number;
+  a3BaseDriveMa: number;
   i2cSinkMa: number;
   mcuTotalTypicalMa: number;
   mcuTotalWorstCaseMa: number;
   mcuWithinSpec: boolean;
+  pcf8574SinkTypicalMa: number;
+  pcf8574SinkWorstCaseMa: number;
+  pcf8574WithinSpec: boolean;
+  transistorLoadTypicalMa: number;
+  transistorLoadWorstCaseMa: number;
+  transistorWithinSpec: boolean;
   sensorsRailMa: number;
   lcdsRailMa: number;
+  buzzerSubSystemTypicalMa: number;
+  buzzerSubSystemWorstCaseMa: number;
   usbTotalTypicalMa: number;
   usbTotalWorstCaseMa: number;
   usbWithinSpec: boolean;
@@ -232,7 +268,7 @@ export function stepParkingBay(
     next.isOverstaying =
       next.elapsedSimMins > ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
     if (!wasOverstay && next.isOverstaying) {
-      eventLog = `[ALARM] Bay ${next.id + 1} exceeded ${ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS} sim min limit! Buzzer ON.`;
+      eventLog = `[ALARM] Bay ${next.id + 1} exceeded ${ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS} sim min limit! Bay ${next.id + 1} passive buzzer (0x24 P${next.id}) ON.`;
       eepromDirty = true;
     }
   }
@@ -355,44 +391,120 @@ export function computeBayLeds(bay: ParkingBayState, nowMs: number): LedOutputs 
 }
 
 /**
- * Evaluates the Overstay Buzzer Engine:
- * Sounds ONLY once one or more cars exceed the 180-minute parking time limit.
- * Distance feedback is handled exclusively by the 3 per-bay LEDs.
- * Uses bay-coded pulse groups (1, 2, or 3 pulses) on Pin A3 so staff can identify
- * which bay is overstaying even with a single shared passive buzzer.
+ * Evaluates a single bay's dedicated 5V Passive Piezo Buzzer gated by PCF8574 (0x24):
+ * - Priority 1 (DANGER zone 2-5 cm): Rapid 150 ms ON / 150 ms OFF staccato warning synced with Red LED.
+ * - Priority 2 (OVERSTAY > 180 sim min): Steady 500 ms ON / 1000 ms OFF pulse synced with R/Y strobe.
+ * - Otherwise: SILENT (PCF8574 pin stays HIGH / open).
  */
-export function computeOverstayBuzzer(
-  bays: ParkingBayState[],
+export function computeBayBuzzer(
+  bay: ParkingBayState,
   nowMs: number
-): BuzzerStatus {
-  const overstayBayNumbers = bays
-    .filter((b) => b.isOverstaying)
-    .map((b) => b.id + 1);
+): BayBuzzerState {
+  const pcfPin = ENGINEERING_CONSTANTS.PCF8574_BUZZER_PINS[bay.id] ?? 'P0';
+  const bitWeight = ([1, 2, 4] as const)[bay.id] ?? 1;
 
-  if (overstayBayNumbers.length === 0) {
+  if (bay.zone === 'DANGER') {
+    const isGateLow = Math.floor(nowMs / 150) % 2 === 0;
     return {
-      active: false,
-      overstayBayNumbers: [],
-      freqHz: 0,
-      cadenceLabel: 'Silent (All within limit)',
-      toneHigh: false,
+      bayIndex: bay.id,
+      bayNumber: bay.id + 1,
+      pcfPin,
+      bitWeight,
+      mode: 'DANGER',
+      isAlerting: true,
+      isGateLow,
+      cadenceLabel: 'DANGER · 150ms rapid',
     };
   }
 
-  // Bay-coded pulse cadence: 200 ms on / 200 ms off, repeated per highest-priority overstay bay
-  const primaryBay = overstayBayNumbers[0];
-  const cycleStep = Math.floor(nowMs / 200) % (primaryBay * 2 + 2);
-  const toneHigh = cycleStep < primaryBay * 2 && cycleStep % 2 === 0;
+  if (bay.isOverstaying) {
+    const isGateLow = nowMs % 1500 < 500;
+    return {
+      bayIndex: bay.id,
+      bayNumber: bay.id + 1,
+      pcfPin,
+      bitWeight,
+      mode: 'OVERSTAY',
+      isAlerting: true,
+      isGateLow,
+      cadenceLabel: 'OVERSTAY · 500ms/1s',
+    };
+  }
 
   return {
-    active: true,
+    bayIndex: bay.id,
+    bayNumber: bay.id + 1,
+    pcfPin,
+    bitWeight,
+    mode: 'SILENT',
+    isAlerting: false,
+    isGateLow: false,
+    cadenceLabel: 'SILENT',
+  };
+}
+
+/**
+ * Evaluates the complete 3-Bay Passive Buzzer Bus:
+ * - Pin A3 drives a 2N2222 NPN emitter-follower tone bus at 2500 Hz (Danger-only),
+ *   1800 Hz (Overstay-only), 2000 Hz (Mixed simultaneous Danger + Overstay), or 0 Hz (Idle).
+ * - PCF8574 (0x24) sinks P0 (Bay 1), P1 (Bay 2), and P2 (Bay 3) active-LOW independently
+ *   using beginner-friendly subtraction: mask = 255 - weight (0xFF = all OFF, 0xF8 = all 3 ON).
+ */
+export function computeBuzzerBus(
+  bays: ParkingBayState[],
+  nowMs: number
+): BuzzerBusStatus {
+  const bayBuzzers = bays.map((bay) => computeBayBuzzer(bay, nowMs));
+  const dangerBayNumbers = bayBuzzers
+    .filter((b) => b.mode === 'DANGER')
+    .map((b) => b.bayNumber);
+  const overstayBayNumbers = bayBuzzers
+    .filter((b) => b.mode === 'OVERSTAY')
+    .map((b) => b.bayNumber);
+
+  let byteMask = 255;
+  let activeSoundingCount = 0;
+  for (const bz of bayBuzzers) {
+    if (bz.isGateLow) {
+      byteMask -= bz.bitWeight;
+      activeSoundingCount += 1;
+    }
+  }
+
+  const anyDanger = dangerBayNumbers.length > 0;
+  const anyOverstay = overstayBayNumbers.length > 0;
+  const anyAlerting = anyDanger || anyOverstay;
+  const anySoundingNow = activeSoundingCount > 0;
+
+  let carrierFreqHz = 0;
+  let carrierModeLabel = 'Carrier Idle (noTone on A3)';
+  if (anyDanger && anyOverstay) {
+    carrierFreqHz = ENGINEERING_CONSTANTS.BUZZER_FREQ_MIXED_HZ;
+    carrierModeLabel = `Mixed Carrier 2000 Hz (Danger B${dangerBayNumbers.join(',')} + Overstay B${overstayBayNumbers.join(',')})`;
+  } else if (anyDanger) {
+    carrierFreqHz = ENGINEERING_CONSTANTS.BUZZER_FREQ_DANGER_HZ;
+    carrierModeLabel = `Danger Carrier 2500 Hz (Bay ${dangerBayNumbers.join(', ')} < 5 cm)`;
+  } else if (anyOverstay) {
+    carrierFreqHz = ENGINEERING_CONSTANTS.BUZZER_FREQ_OVERSTAY_HZ;
+    carrierModeLabel = `Overstay Carrier 1800 Hz (Bay ${overstayBayNumbers.join(', ')} > 180 min)`;
+  }
+
+  const byteHex = `0x${byteMask.toString(16).toUpperCase().padStart(2, '0')}`;
+  const byteBinary = byteMask.toString(2).padStart(8, '0');
+
+  return {
+    pcf8574Address: ENGINEERING_CONSTANTS.PCF8574_BUZZER_ADDRESS,
+    bays: bayBuzzers,
+    anyAlerting,
+    anySoundingNow,
+    activeSoundingCount,
+    dangerBayNumbers,
     overstayBayNumbers,
-    freqHz: 2000,
-    cadenceLabel:
-      overstayBayNumbers.length === 1
-        ? `Bay ${primaryBay} Overstay (${primaryBay}× pulse @ 2000 Hz)`
-        : `Multi-Bay Overstay (Bays ${overstayBayNumbers.join(', ')} @ 2000 Hz)`,
-    toneHigh,
+    carrierFreqHz,
+    carrierModeLabel,
+    byteMask,
+    byteHex,
+    byteBinary,
   };
 }
 
@@ -514,23 +626,24 @@ export function restoreFromEeprom(
 }
 
 /**
- * Recalculated electrical current & I2C pull-up budget for the 3-LCD, 9-LED, 3-HC-SR04 Uno R3 build.
+ * Recalculated electrical current, transistor/expander load, and I2C pull-up budget
+ * for the 3-LCD, 9-LED, 3-HC-SR04, 3-Passive-Buzzer (A3 + 2N2222 + PCF8574 0x24) Uno R3 build.
  */
 export function calculateElectricalBudget(params: {
   resistorOhms: number;
   activeLcdCount: number;
   lcdBacklightMa: number;
   activeLedsCount: number;
-  buzzerOn: boolean;
-  i2cBackpacksWithPullups: number;
+  activeBuzzerCount: number;
+  i2cDevicesWithPullups: number;
 }): ElectricalBudgetResult {
   const {
     resistorOhms,
     activeLcdCount,
     lcdBacklightMa,
     activeLedsCount,
-    buzzerOn,
-    i2cBackpacksWithPullups,
+    activeBuzzerCount,
+    i2cDevicesWithPullups,
   } = params;
 
   const r = Math.max(100, resistorOhms);
@@ -548,23 +661,50 @@ export function calculateElectricalBudget(params: {
   const clampedActiveLeds = Math.max(0, Math.min(9, activeLedsCount));
   const activeLedsMa = clampedActiveLeds * ledCurrentRedYellowMa;
 
+  const clampedActiveBuzzers = Math.max(0, Math.min(3, activeBuzzerCount));
   const mcuCoreMa = 15.0;
-  const buzzerMa = buzzerOn ? 15.0 : 0.0;
+  // Pin A3 only drives the 2N2222 NPN Base through 1 kOhm (<= 1.0 mA when carrier active)
+  const a3BaseDriveMa = clampedActiveBuzzers > 0 ? 1.0 : 0.0;
+  const a3BaseDriveWorstMa = 1.0;
+
   const parallelI2cPullupKOhm =
-    i2cBackpacksWithPullups > 0 ? 4.7 / i2cBackpacksWithPullups : 4.7;
+    i2cDevicesWithPullups > 0 ? 4.7 / i2cDevicesWithPullups : 4.7;
   const i2cSinkMa = ENGINEERING_CONSTANTS.VCC_VOLTS / parallelI2cPullupKOhm;
 
-  const mcuTotalTypicalMa = mcuCoreMa + activeLedsMa + buzzerMa + i2cSinkMa;
-  const mcuTotalWorstCaseMa = mcuCoreMa + allNineLedsMa + 15.0 + i2cSinkMa;
+  const mcuTotalTypicalMa = mcuCoreMa + activeLedsMa + a3BaseDriveMa + i2cSinkMa;
+  const mcuTotalWorstCaseMa =
+    mcuCoreMa + allNineLedsMa + a3BaseDriveWorstMa + i2cSinkMa;
+
+  // PCF8574 (0x24) active-LOW current sink (15 mA per active passive buzzer, max 80 mA pkg)
+  const pcf8574SinkTypicalMa = clampedActiveBuzzers * 15.0;
+  const pcf8574SinkWorstCaseMa = 3 * 15.0; // 45.0 mA max
+
+  // 2N2222 NPN emitter-follower load (buzzers + 1 kOhm emitter pull-down = 4.3 mA when active)
+  const emitterPulldownMa = 4.3;
+  const transistorLoadTypicalMa =
+    clampedActiveBuzzers > 0 ? pcf8574SinkTypicalMa + emitterPulldownMa : 0.0;
+  const transistorLoadWorstCaseMa = pcf8574SinkWorstCaseMa + emitterPulldownMa; // 49.3 mA
+
+  // Total external buzzer subsystem draw from 5V rail (PCF8574 quiescent 1 mA + transistor load)
+  const pcf8574QuiescentMa = 1.0;
+  const buzzerSubSystemTypicalMa = pcf8574QuiescentMa + transistorLoadTypicalMa;
+  const buzzerSubSystemWorstCaseMa = pcf8574QuiescentMa + transistorLoadWorstCaseMa; // 50.3 mA
 
   // External 5V rail loads (do not pass through ATmega328P Vcc/GND pins)
   const sensorsRailTypicalMa = 19.0; // 1 firing (~15 mA) + 2 idle (~2 mA each) under TDM
-  const sensorsRailWorstMa = 3 * 15.0; // Conservative datasheet steady sum = 45 mA
+  const sensorsRailWorstMa = 3 * 15.0; // Conservative datasheet steady sum = 45.0 mA
   const lcdsRailMa = activeLcdCount * lcdBacklightMa;
 
-  const usbTotalTypicalMa = mcuTotalTypicalMa + sensorsRailTypicalMa + lcdsRailMa;
+  const usbTotalTypicalMa =
+    mcuTotalTypicalMa +
+    sensorsRailTypicalMa +
+    lcdsRailMa +
+    buzzerSubSystemTypicalMa;
   const usbTotalWorstCaseMa =
-    mcuTotalWorstCaseMa + sensorsRailWorstMa + activeLcdCount * Math.max(lcdBacklightMa, 30);
+    mcuTotalWorstCaseMa +
+    sensorsRailWorstMa +
+    activeLcdCount * Math.max(lcdBacklightMa, 30) +
+    buzzerSubSystemWorstCaseMa;
 
   return {
     ledCurrentRedYellowMa: Number(ledCurrentRedYellowMa.toFixed(2)),
@@ -572,13 +712,23 @@ export function calculateElectricalBudget(params: {
     allNineLedsMa: Number(allNineLedsMa.toFixed(1)),
     activeLedsMa: Number(activeLedsMa.toFixed(1)),
     mcuCoreMa,
-    buzzerMa,
+    a3BaseDriveMa,
     i2cSinkMa: Number(i2cSinkMa.toFixed(2)),
     mcuTotalTypicalMa: Number(mcuTotalTypicalMa.toFixed(1)),
     mcuTotalWorstCaseMa: Number(mcuTotalWorstCaseMa.toFixed(1)),
     mcuWithinSpec: mcuTotalWorstCaseMa <= ENGINEERING_CONSTANTS.ATMEGA_MAX_VCC_MA,
+    pcf8574SinkTypicalMa: Number(pcf8574SinkTypicalMa.toFixed(1)),
+    pcf8574SinkWorstCaseMa: Number(pcf8574SinkWorstCaseMa.toFixed(1)),
+    pcf8574WithinSpec:
+      pcf8574SinkWorstCaseMa <= ENGINEERING_CONSTANTS.PCF8574_MAX_PKG_MA,
+    transistorLoadTypicalMa: Number(transistorLoadTypicalMa.toFixed(1)),
+    transistorLoadWorstCaseMa: Number(transistorLoadWorstCaseMa.toFixed(1)),
+    transistorWithinSpec:
+      transistorLoadWorstCaseMa <= ENGINEERING_CONSTANTS.NPN_2N2222_MAX_IC_MA,
     sensorsRailMa: sensorsRailWorstMa,
     lcdsRailMa: Number(lcdsRailMa.toFixed(1)),
+    buzzerSubSystemTypicalMa: Number(buzzerSubSystemTypicalMa.toFixed(1)),
+    buzzerSubSystemWorstCaseMa: Number(buzzerSubSystemWorstCaseMa.toFixed(1)),
     usbTotalTypicalMa: Number(usbTotalTypicalMa.toFixed(1)),
     usbTotalWorstCaseMa: Number(usbTotalWorstCaseMa.toFixed(1)),
     usbWithinSpec: usbTotalWorstCaseMa <= ENGINEERING_CONSTANTS.USB_POLY_MAX_MA,

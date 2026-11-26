@@ -93,7 +93,7 @@ export const CodeStudioTab: React.FC = () => {
               C++ Code Studio — Strictly KIE1004 W01–W13 Firmware
             </h2>
             <p className="text-[11px] font-light text-[#5F6368] truncate">
-              {FIRMWARE_FILENAME} · {lines.length} lines · Zero structs, zero enums, zero snprintf/EEPROM templates
+              {FIRMWARE_FILENAME} · {lines.length} lines · 3× Passive Buzzers (A3 + 0x24) · Zero structs, enums, or bitwise shifts
             </p>
           </div>
         </div>
@@ -224,7 +224,7 @@ export const CodeStudioTab: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search sketch (e.g. insertionSort, LED_PINS, occupiedPtr, printTwoDigits)..."
+                  placeholder="Search sketch (e.g. writeBuzzerBus, PCF8574_BUZZER_ADDR, insertionSort, LED_PINS)..."
                   className="w-full bg-transparent text-xs font-mono text-[#202124] placeholder:text-[#80868B] focus:outline-none"
                 />
               </div>
@@ -342,7 +342,7 @@ export const CodeStudioTab: React.FC = () => {
               Syllabus Compliance Audit — Advanced Constructs Removed & Replaced
             </h3>
             <p className="text-xs font-light text-[#5F6368] mt-1">
-              Every construct outside the 13 attached KIE1004 lecture PDFs was deliberately eliminated while preserving 100% of the 3-bay ultrasonic, 9-LED, 3-LCD, 5.0-second stationary rule, and overstay buzzer functionality.
+              Every construct outside the 13 attached KIE1004 lecture PDFs was deliberately eliminated while preserving 100% of the 3-bay ultrasonic, 9-LED, 3-LCD, 5.0-second stationary rule, and 3 independent passive buzzers (A3 + 2N2222 + PCF8574 0x24).
             </p>
           </div>
 

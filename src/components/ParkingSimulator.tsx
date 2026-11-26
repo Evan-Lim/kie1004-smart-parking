@@ -22,7 +22,7 @@ import {
   createInitialBay,
   stepParkingBay,
   computeBayLeds,
-  computeOverstayBuzzer,
+  computeBuzzerBus,
   formatBayLcdLines,
   serializeEeprom,
   restoreFromEeprom,
@@ -53,13 +53,13 @@ export const ParkingSimulator: React.FC = () => {
     {
       id: 'boot-1',
       timeLabel: '00:00',
-      text: 'KIE1004 SMART PARKING v3.0 | 3x I2C LCD (0x27, 0x26, 0x25) + 5.0 s Stationary Rule',
+      text: 'KIE1004 SMART PARKING v3.1 | 3x LCD (0x27–0x25) + 3x Passive Buzzers (A3→2N2222 + PCF8574 0x24)',
       kind: 'info',
     },
     {
       id: 'boot-2',
       timeLabel: '00:00',
-      text: 'Ready. Park car (<= 20 cm) & hold motionless 5.0 s to begin count-up cleanly at 00:00.',
+      text: 'Ready. Danger (2–5 cm) fires 2500 Hz rapid; Overstay (>180m) fires 1800 Hz pulse; Mixed = 2000 Hz.',
       kind: 'info',
     },
   ]);
@@ -153,14 +153,14 @@ export const ParkingSimulator: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [isRunning]);
 
-  const buzzer = computeOverstayBuzzer(bays, simMs);
+  const buzzerBus = computeBuzzerBus(bays, simMs);
 
   useEffect(() => {
     if (!audioEnabled) {
       lastBeepStateRef.current = false;
       return;
     }
-    const shouldSound = buzzer.active && buzzer.toneHigh;
+    const shouldSound = buzzerBus.anySoundingNow && buzzerBus.carrierFreqHz > 0;
     if (shouldSound && !lastBeepStateRef.current) {
       try {
         const AudioCtx =
@@ -175,19 +175,19 @@ export const ParkingSimulator: React.FC = () => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'square';
-          osc.frequency.value = buzzer.freqHz || 2000;
+          osc.frequency.value = buzzerBus.carrierFreqHz;
           gain.gain.value = 0.04;
           osc.connect(gain);
           gain.connect(ctx.destination);
           osc.start();
-          osc.stop(ctx.currentTime + 0.16);
+          osc.stop(ctx.currentTime + 0.14);
         }
       } catch {
         // Ignore headless audio restrictions
       }
     }
     lastBeepStateRef.current = shouldSound;
-  }, [audioEnabled, buzzer.active, buzzer.toneHigh, buzzer.freqHz]);
+  }, [audioEnabled, buzzerBus.anySoundingNow, buzzerBus.carrierFreqHz, buzzerBus.byteMask]);
 
   const setBayDistance = (bayIdx: number, distCm: number) => {
     setTargetDistances((prev) => {
@@ -327,10 +327,10 @@ export const ParkingSimulator: React.FC = () => {
         <div className="bg-white border border-[#DADCE0] px-3.5 py-2.5">
           <div className="text-[10.5px] font-mono uppercase text-[#5F6368]">Hardware Topology</div>
           <div className="text-base font-normal text-[#202124] mt-0.5 tabular-nums">
-            3+1 US · 9 LEDs · 3 LCDs
+            3 US · 9 LED · 3 LCD · 3 BZ
           </div>
           <div className="text-[11px] font-light text-[#1A73E8] font-mono">
-            20/20 Uno Pins · 0 Conflicts
+            20/20 Uno Pins + 0x24 Expander
           </div>
         </div>
         <div className="bg-white border border-[#DADCE0] px-3.5 py-2.5">
@@ -339,7 +339,7 @@ export const ParkingSimulator: React.FC = () => {
             {occupiedCount} / 3 Occupied
           </div>
           <div className="text-[11px] font-light text-[#137333] font-mono">
-            {3 - occupiedCount} Open · {overstayCount} Overstay
+            {3 - occupiedCount} Open · {overstayCount} Overstay · {buzzerBus.dangerBayNumbers.length} Danger
           </div>
         </div>
         <div className="bg-white border border-[#DADCE0] px-3.5 py-2.5">
@@ -357,7 +357,7 @@ export const ParkingSimulator: React.FC = () => {
             {formatClock(simMs)} · {timeScaleFactor}×
           </div>
           <div className="text-[11px] font-light text-[#5F6368] font-mono">
-            113.2 mA MCU · 248.2 mA USB
+            100.3 mA MCU · 285.6 mA USB
           </div>
         </div>
       </div>
@@ -457,6 +457,7 @@ export const ParkingSimulator: React.FC = () => {
         {bays.map((bay, idx) => {
           const [lcdRow0, lcdRow1] = formatBayLcdLines(bay, timeScaleFactor);
           const leds = computeBayLeds(bay, simMs);
+          const bayBuzzer = buzzerBus.bays[idx];
           const settleProgressPct =
             bay.state === 'PARKING_SETTLE'
               ? Math.min(
@@ -485,7 +486,7 @@ export const ParkingSimulator: React.FC = () => {
                     Parking Slot {idx + 1}
                   </h3>
                   <p className="text-[11px] font-mono text-[#5F6368]">
-                    LCD {bay.lcdAddress} · US D{idx * 2 + 2}/D{idx * 2 + 3}
+                    LCD {bay.lcdAddress} · US D{idx * 2 + 2}/D{idx * 2 + 3} · BZ{idx + 1} 0x24 {bayBuzzer.pcfPin}
                   </p>
                 </div>
                 <span
@@ -567,6 +568,37 @@ export const ParkingSimulator: React.FC = () => {
                 </div>
                 <span className="text-[11px] font-normal text-[#202124] truncate">
                   {leds.modeLabel}
+                </span>
+              </div>
+
+              {/* Layer 2B: Dedicated Bay Passive Buzzer Status (PCF8574 0x24 P0/P1/P2) */}
+              <div
+                data-testid={`bay-buzzer-${idx + 1}`}
+                className={`px-3 py-1.5 border flex items-center justify-between gap-2 transition-colors ${
+                  bayBuzzer.mode === 'DANGER'
+                    ? bayBuzzer.isGateLow
+                      ? 'bg-[#FCE8E6] border-[#C5221F] text-[#A50E0E]'
+                      : 'bg-[#FFF5F4] border-[#F6AEA9] text-[#A50E0E]'
+                    : bayBuzzer.mode === 'OVERSTAY'
+                      ? bayBuzzer.isGateLow
+                        ? 'bg-[#FEF7E0] border-[#B06000] text-[#7A4100]'
+                        : 'bg-[#FFFDF5] border-[#FDE293] text-[#7A4100]'
+                      : 'bg-[#F8F9FA] border-[#DADCE0] text-[#5F6368]'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {bayBuzzer.isGateLow ? (
+                    <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5 shrink-0 opacity-65" />
+                  )}
+                  <span className="text-[10.5px] font-mono font-medium whitespace-nowrap">
+                    BZ{idx + 1} ({bayBuzzer.pcfPin})
+                  </span>
+                  <span className="text-[10.5px] truncate">{bayBuzzer.cadenceLabel}</span>
+                </div>
+                <span className="text-[10px] font-mono font-medium shrink-0">
+                  {bayBuzzer.isGateLow ? 'LOW (ON)' : 'HIGH (OFF)'}
                 </span>
               </div>
 
@@ -776,56 +808,84 @@ export const ParkingSimulator: React.FC = () => {
         })}
       </div>
 
-      {/* Bottom Split: Pin A3 Buzzer + Receipt & Serial Monitor */}
+      {/* Bottom Split: 3-Buzzer Tone Bus & PCF8574 (0x24) Monitor + Receipt & Serial Monitor */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-4 bg-white border border-[#DADCE0] p-3.5 flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-medium text-[#202124]">
-              Overstay Buzzer Engine (Pin A3)
+              3-Buzzer Tone Bus (A3→2N2222) &amp; PCF8574 (0x24)
             </h3>
-            <span className="font-mono text-[10.5px] text-[#5F6368]">Timer 2 · &gt;180m</span>
+            <span className="font-mono text-[10.5px] text-[#5F6368] shrink-0">Active-LOW</span>
           </div>
 
           <div
             data-testid="overstay-buzzer-panel"
             className={`p-3 border transition-colors ${
-              buzzer.active
+              buzzerBus.anyAlerting
                 ? 'bg-[#FCE8E6] border-[#C5221F]'
                 : 'bg-[#F8F9FA] border-[#DADCE0]'
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                {buzzer.active ? (
-                  <AlertTriangle className="w-4 h-4 text-[#C5221F]" />
+              <div className="flex items-center gap-1.5 min-w-0">
+                {buzzerBus.anyAlerting ? (
+                  <AlertTriangle className="w-4 h-4 text-[#C5221F] shrink-0" />
                 ) : (
-                  <CheckCircle2 className="w-4 h-4 text-[#137333]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#137333] shrink-0" />
                 )}
                 <span
-                  className={`text-xs font-medium ${
-                    buzzer.active ? 'text-[#A50E0E]' : 'text-[#137333]'
+                  className={`text-xs font-medium truncate ${
+                    buzzerBus.anyAlerting ? 'text-[#A50E0E]' : 'text-[#137333]'
                   }`}
                 >
-                  {buzzer.active ? 'OVERSTAY ALARM ACTIVE' : 'BUZZER SILENT'}
+                  {buzzerBus.anyAlerting
+                    ? `${buzzerBus.activeSoundingCount}/3 BUZZER(S) SOUNDING`
+                    : 'ALL 3 BUZZERS SILENT'}
                 </span>
               </div>
-              <span className="font-mono text-[11px] tabular-nums text-[#5F6368]">
-                {buzzer.active ? `${buzzer.freqHz} Hz` : '0 Hz'}
+              <span
+                data-testid="buzzer-carrier-hz"
+                className="font-mono text-[11px] font-medium tabular-nums text-[#202124] shrink-0"
+              >
+                {buzzerBus.carrierFreqHz > 0 ? `${buzzerBus.carrierFreqHz} Hz` : '0 Hz'}
               </span>
             </div>
-            <p className="text-[11px] font-mono text-[#202124] mt-1.5">{buzzer.cadenceLabel}</p>
-            <div className="mt-2 flex items-center gap-1" aria-hidden="true">
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((bar) => (
+
+            <p className="text-[11px] font-mono text-[#202124] mt-1.5">
+              {buzzerBus.carrierModeLabel}
+            </p>
+
+            {/* Live PCF8574 (0x24) I2C Register Readout */}
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10.5px] font-mono tabular-nums">
+              <div className="bg-white/90 border border-[#DADCE0] px-2 py-1 flex items-center justify-between">
+                <span className="text-[#5F6368]">0x24 Byte</span>
+                <span data-testid="pcf8574-byte-hex" className="font-medium text-[#1A73E8]">
+                  {buzzerBus.byteHex} ({buzzerBus.byteMask})
+                </span>
+              </div>
+              <div className="bg-white/90 border border-[#DADCE0] px-2 py-1 flex items-center justify-between">
+                <span className="text-[#5F6368]">P2·P1·P0</span>
+                <span className="font-medium text-[#202124]">
+                  {buzzerBus.byteBinary.slice(5)}
+                </span>
+              </div>
+            </div>
+
+            {/* 3 Independent Buzzer Gate Bars */}
+            <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-mono">
+              {buzzerBus.bays.map((b) => (
                 <div
-                  key={bar}
-                  className={`h-2 flex-1 transition-colors duration-75 ${
-                    buzzer.active && buzzer.toneHigh
-                      ? 'bg-[#C5221F]'
-                      : buzzer.active
-                        ? 'bg-[#F6AEA9]'
-                        : 'bg-[#DADCE0]'
+                  key={b.bayIndex}
+                  className={`px-1.5 py-1 border text-center transition-colors ${
+                    b.isGateLow
+                      ? 'bg-[#C5221F] border-[#A50E0E] text-white font-medium'
+                      : b.isAlerting
+                        ? 'bg-[#FAD2CF] border-[#C5221F] text-[#A50E0E]'
+                        : 'bg-white border-[#DADCE0] text-[#5F6368]'
                   }`}
-                />
+                >
+                  BZ{b.bayNumber} {b.pcfPin}: {b.isGateLow ? '0' : '1'}
+                </div>
               ))}
             </div>
           </div>

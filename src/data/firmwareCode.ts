@@ -1,4 +1,5 @@
-// Complete Arduino C++ v3.0 Firmware rewritten strictly using KIE1004 W01-W13 concepts ONLY
+// Complete Arduino C++ v3.1 Firmware rewritten strictly using KIE1004 W01-W13 concepts ONLY
+// 3x Independent 5V Passive Buzzers via Pin A3 Tone Bus + 2N2222 Emitter Follower + PCF8574 (0x24) Ground Gates.
 // Zero structs, zero enums, zero uint8_t/uint32_t typedefs, zero snprintf/strcmp, zero EEPROM binary serialization.
 
 export const FIRMWARE_FILENAME = 'kie1004_smart_parking_v3.ino';
@@ -22,9 +23,9 @@ export interface AdvancedRemovedEntry {
 
 export const ARDUINO_FIRMWARE_V3 = `/*
  * ============================================================================
- * KIE1004: Programming 1 (Semester 1, Session 2025/2026)
- * Project : Smart Multi-Space Parking Assistance & Management System (v3.0)
- * Board   : Arduino Uno R3 (ATmega328P, 20/20 I/O Pins Utilized)
+ * KIE1004: Programming 1 (Semester 1, Session 2026/2027)
+ * Project : Smart Multi-Space Parking Assistance & Management System (v3.1)
+ * Board   : Arduino Uno R3 (ATmega328P, 20/20 Native Pins + PCF8574 0x24)
  *
  * SYLLABUS COMPLIANCE (STRICTLY W01 - W13 CONCEPTS ONLY):
  *   W02 - Variables, const constants, basic types (int, bool, char, unsigned long)
@@ -40,7 +41,7 @@ export const ARDUINO_FIRMWARE_V3 = `/*
  *   W12 - Pointers declaration (*), address-of (&), dereferencing (*)
  *   W13 - Pass-by-reference with pointer arguments (int *out1, int *out2)
  *
- * HARDWARE CONFIGURATION (3 BAYS · 20/20 UNO PINS):
+ * HARDWARE CONFIGURATION (3 BAYS · 20/20 UNO PINS + 4x I2C DEVICES):
  *   - 3x HC-SR04 Ultrasonic Sensors (+1 spare in kit = 3+1 total)
  *       Bay 1: Trig D2,  Echo D3
  *       Bay 2: Trig D4,  Echo D5
@@ -53,7 +54,15 @@ export const ARDUINO_FIRMWARE_V3 = `/*
  *       Bay 1: 0x27 (A0/A1/A2 open)
  *       Bay 2: 0x26 (solder bridge A0)
  *       Bay 3: 0x25 (solder bridge A1)
- *   - 1x 5V Passive Piezo Buzzer on Pin A3 (sounds ONLY when parked > 180 sim min)
+ *   - 3x Independent 5V Passive Piezo Buzzers (one mounted per bay)
+ *       Shared Tone Carrier: Pin A3 -> 1k ohm -> 2N2222 NPN Emitter Follower
+ *                            (Collector +5V, Emitter -> all 3 buzzers + & 1k to GND)
+ *       Individual Bay Gates: PCF8574 I2C Expander at 0x24 (bridge A0 + A1)
+ *                             P0 -> Bay 1 (-), P1 -> Bay 2 (-), P2 -> Bay 3 (-)
+ *                             Active-LOW sinking: 0 = Sound ON, 1 = Silent
+ *       Alert Policy: Red Danger (2-5 cm) = rapid 150 ms beep (2500 Hz solo)
+ *                     Overstay (>180 min) = slow 500/1000 ms pulse (1800 Hz solo)
+ *                     Mixed simultaneous  = shared 2000 Hz carrier + independent gates
  *   - D0 (RX) / D1 (TX) reserved cleanly for USB upload & 9600-baud Serial Monitor
  * ============================================================================
  */
@@ -76,17 +85,17 @@ const int STATE_EXITING   = 3;   // Car left; 3.0 s debounce before receipt
 
 // Distance zone codes (1:20 scale model in cm)
 const int ZONE_AVAILABLE = 0;    // > 20 cm
-const int ZONE_SAFE      = 1;    // 10 - 20 cm (Green LED)
-const int ZONE_CAUTION   = 2;    // 5 - 9 cm   (Yellow LED)
-const int ZONE_DANGER    = 3;    // < 5 cm     (Red LED)
+const int ZONE_SAFE      = 1;    // 11 - 20 cm (Green LED)
+const int ZONE_CAUTION   = 2;    // 6 - 10 cm  (Yellow LED)
+const int ZONE_DANGER    = 3;    // 2 - 5 cm   (Red LED + rapid bay buzzer)
 
 // Distance thresholds (cm)
-const int DIST_MIN_CM        = 2;
-const int DIST_MAX_CM        = 400;
-const int DIST_ENTRY_MAX_CM  = 20;
-const int DIST_SAFE_MIN_CM   = 10;
-const int DIST_CAUTION_MIN_CM = 5;
-const int STATIONARY_TOL_CM  = 1;     // +-1 cm deadband absorbs HC-SR04 jitter
+const int DIST_MIN_CM         = 2;
+const int DIST_MAX_CM         = 400;
+const int DIST_ENTRY_MAX_CM   = 20;
+const int DIST_SAFE_MIN_CM    = 11;
+const int DIST_CAUTION_MIN_CM = 6;
+const int STATIONARY_TOL_CM   = 1;     // +-1 cm deadband absorbs HC-SR04 jitter
 
 // Timing constants (milliseconds)
 const unsigned long SENSOR_SLOT_MS    = 40UL;   // 40 ms TDM ultrasonic slot
@@ -98,7 +107,7 @@ const unsigned long PULSE_TIMEOUT_US  = 15000UL;
 // Tariff and overstay rules (simulated minutes)
 const int GRACE_MINUTES    = 15;
 const int RATE_RM_PER_HOUR = 3;
-const int OVERSTAY_MIN     = 180;     // 3 simulated hours -> buzzer alarm
+const int OVERSTAY_MIN     = 180;     // 3 simulated hours -> overstay buzzer
 
 // Hardware Pin Maps using 1D Arrays (W09) and 2D Array (W10)
 const int TRIG_PINS[NUM_BAYS] = { 2, 4, 6 };
@@ -111,8 +120,15 @@ const int LED_PINS[NUM_BAYS][LEDS_PER_BAY] = {
   { A0, A1, A2 }   // Bay 3 LEDs (PORTC digital I/O)
 };
 
-const int BUZZER_PIN = A3;
-const int BUZZER_FREQ_HZ = 2000;
+// 3x Independent Passive Buzzer Hardware (Pin A3 Tone Carrier + PCF8574 0x24)
+const int BUZZER_TONE_PIN     = A3;    // Feeds 2N2222 NPN base via 1k ohm
+const int PCF8574_BUZZER_ADDR = 0x24;  // Bridge A0 + A1 pads on PCF8574
+const int BUZZER_BIT_WEIGHT[NUM_BAYS] = { 1, 2, 4 }; // P0=1, P1=2, P2=4
+
+// Pitch arbitration frequencies for single Timer 2 tone() carrier
+const int FREQ_DANGER_HZ   = 2500;     // Sharp rapid tone when Danger-only
+const int FREQ_OVERSTAY_HZ = 1800;     // Lower steady tone when Overstay-only
+const int FREQ_MIXED_HZ    = 2000;     // Shared carrier when both occur together
 
 // 3x Dedicated 16x2 I2C LCD Displays (Bay 1 = 0x27, Bay 2 = 0x26, Bay 3 = 0x25)
 LiquidCrystal_I2C lcds[NUM_BAYS] = {
@@ -124,20 +140,24 @@ LiquidCrystal_I2C lcds[NUM_BAYS] = {
 // ============================================================================
 // SECTION 2: PARALLEL 1D & 2D STATE ARRAYS (W09 & W10 - No struct Needed)
 // ============================================================================
-int bayState[NUM_BAYS]               = { STATE_AVAILABLE, STATE_AVAILABLE, STATE_AVAILABLE };
-int filteredDistCm[NUM_BAYS]         = { 400, 400, 400 };
-int anchorDistCm[NUM_BAYS]           = { 400, 400, 400 };
+int bayState[NUM_BAYS]                 = { STATE_AVAILABLE, STATE_AVAILABLE, STATE_AVAILABLE };
+int filteredDistCm[NUM_BAYS]           = { 400, 400, 400 };
+int anchorDistCm[NUM_BAYS]             = { 400, 400, 400 };
 int distHistory[NUM_BAYS][HISTORY_LEN] = {
   { 400, 400, 400 },
   { 400, 400, 400 },
   { 400, 400, 400 }
 };
-int historyPos[NUM_BAYS]             = { 0, 0, 0 };
+int historyPos[NUM_BAYS]               = { 0, 0, 0 };
 
-unsigned long settleStartMs[NUM_BAYS] = { 0, 0, 0 };
-unsigned long parkStartMs[NUM_BAYS]   = { 0, 0, 0 };
-unsigned long exitStartMs[NUM_BAYS]   = { 0, 0, 0 };
-int lastShownKey[NUM_BAYS]            = { -1, -1, -1 };
+unsigned long settleStartMs[NUM_BAYS]  = { 0, 0, 0 };
+unsigned long parkStartMs[NUM_BAYS]    = { 0, 0, 0 };
+unsigned long exitStartMs[NUM_BAYS]    = { 0, 0, 0 };
+int lastShownKey[NUM_BAYS]             = { -1, -1, -1 };
+
+// Dirty-check state for PCF8574 (0x24) and Pin A3 carrier (avoids I2C spam)
+int lastBuzzerMask = 255;              // 255 = 0xFF = all P0..P7 HIGH (all silent)
+int lastCarrierHz  = 0;
 
 // Runtime configuration flags
 int timeScale = 60;       // 60 = Demo Mode (1 real sec = 1 sim min), 1 = Real-Time
@@ -151,6 +171,7 @@ int totalRevenueRM = 0;
 void initHardwarePins(const int trigArr[], const int echoArr[],
                       const int ledMatrix[][LEDS_PER_BAY], int rows);
 void initLcdDisplays();
+void writeBuzzerBus(int activeLowMask);                              // PCF8574 0x24 I2C
 int  measureRawDistanceCm(int trigPin, int echoPin);
 void insertionSort(int items[], int n);                              // W11
 int  getMedianDistance(const int row[], int n);                      // W09 + W11
@@ -162,8 +183,9 @@ void updateBayMachine(int i, int distCm, unsigned long nowMs,
                       int &revenueRef, int &sessionsRef);            // W08 pass-by-ref (&)
 void updateBayLeds(int bayIdx, int state, int zone,
                    unsigned long nowMs, const int ledMatrix[][LEDS_PER_BAY]);
-void updateOverstayBuzzer(const int states[], const unsigned long startTimes[],
-                          int numBays, unsigned long nowMs);
+void updateThreeBayBuzzers(const int states[], const int distArr[],
+                           const unsigned long startTimes[],
+                           int numBays, unsigned long nowMs);
 void renderSingleLcd(int bayIdx, unsigned long nowMs);
 void printTwoDigits(LiquidCrystal_I2C &screen, int value);           // W08 overload #1
 void printTwoDigits(int value);                                      // W08 overload #2
@@ -181,16 +203,17 @@ void resetAllBays(int states[], int numBays);
 // SECTION 4: ARDUINO SETUP & NON-BLOCKING COOPERATIVE LOOP
 // ============================================================================
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   Wire.begin();
 
   initHardwarePins(TRIG_PINS, ECHO_PINS, LED_PINS, NUM_BAYS);
+  writeBuzzerBus(255);    // 0xFF -> P0, P1, P2 all HIGH (all 3 buzzers OFF)
   initLcdDisplays();
 
-  Serial.println("====================================================");
-  Serial.println(" KIE1004 Smart Parking v3.0 (W01-W13 Clean C++)");
+  Serial.println("========================================================");
+  Serial.println(" KIE1004 Smart Parking v3.1 (3x Passive Buzzers @ 0x24)");
   Serial.println(" Commands: S=Status | T=60x/1x | D=Debug | R=Reset");
-  Serial.println("====================================================");
+  Serial.println("========================================================");
 }
 
 void loop() {
@@ -244,8 +267,8 @@ void loop() {
     updateBayLeds(i, bayState[i], zone, nowMs, LED_PINS);
   }
 
-  // Task 3: Overstay-only buzzer on Pin A3 (silent unless time > 180 sim min)
-  updateOverstayBuzzer(bayState, parkStartMs, NUM_BAYS, nowMs);
+  // Task 3: Drive 3 independent passive buzzers (Pin A3 tone + PCF8574 0x24 gates)
+  updateThreeBayBuzzers(bayState, filteredDistCm, parkStartMs, NUM_BAYS, nowMs);
 
   // Task 4: Staggered 200 ms single-LCD update (keeps I2C bus non-blocking)
   if (nowMs - lastLcdMs >= LCD_SLOT_MS) {
@@ -259,7 +282,7 @@ void loop() {
 }
 
 // ============================================================================
-// SECTION 5: HARDWARE INITIALIZATION (W05 Nested Loops + W10 2D Array Param)
+// SECTION 5: HARDWARE INITIALIZATION & PCF8574 I2C DRIVER (W05, W10)
 // ============================================================================
 void initHardwarePins(const int trigArr[], const int echoArr[],
                       const int ledMatrix[][LEDS_PER_BAY], int rows) {
@@ -274,8 +297,15 @@ void initHardwarePins(const int trigArr[], const int echoArr[],
       digitalWrite(ledMatrix[i][j], LOW);
     }
   }
-  pinMode(BUZZER_PIN, OUTPUT);
-  noTone(BUZZER_PIN);
+  pinMode(BUZZER_TONE_PIN, OUTPUT);
+  noTone(BUZZER_TONE_PIN);
+}
+
+void writeBuzzerBus(int activeLowMask) {
+  Wire.beginTransmission(PCF8574_BUZZER_ADDR);
+  Wire.write(activeLowMask);
+  Wire.endTransmission();
+  lastBuzzerMask = activeLowMask;
 }
 
 void initLcdDisplays() {
@@ -287,7 +317,7 @@ void initLcdDisplays() {
     lcds[i].print(i + 1);
     lcds[i].print(" READY     ");
     lcds[i].setCursor(0, 1);
-    lcds[i].print("KIE1004 v3.0    ");
+    lcds[i].print("KIE1004 v3.1    ");
   }
 }
 
@@ -350,7 +380,7 @@ int applySmoothingFilter(int prevCm, int medianCm) {
 // SECTION 7: DISTANCE CLASSIFICATION & GRACE-FIRST TARIFF (W03, W04, W07)
 // ============================================================================
 int classifyDistanceZone(int distCm) {
-  if (distCm > DIST_ENTRY_MAX_CM) {
+  if (distCm > DIST_ENTRY_MAX_CM || distCm < DIST_MIN_CM) {
     return ZONE_AVAILABLE;
   } else if (distCm >= DIST_SAFE_MIN_CM) {
     return ZONE_SAFE;
@@ -445,7 +475,7 @@ void updateBayMachine(int i, int distCm, unsigned long nowMs,
 }
 
 // ============================================================================
-// SECTION 9: 9-LED DISTANCE MATRIX & OVERSTAY-ONLY BUZZER (W04, W10)
+// SECTION 9: 9-LED MATRIX & 3x INDEPENDENT PASSIVE BUZZERS (A3 + 0x24)
 // ============================================================================
 void updateBayLeds(int bayIdx, int state, int zone,
                    unsigned long nowMs, const int ledMatrix[][LEDS_PER_BAY]) {
@@ -457,31 +487,29 @@ void updateBayLeds(int bayIdx, int state, int zone,
   bool yOn = false;
   bool rOn = false;
 
-  if (state == STATE_AVAILABLE) {
-    // Bay empty: solid Green indicates open space
-    gOn = true;
-  } else {
-    // Bay has a car: map 3 LEDs to distance zones (Green/Yellow/Red)
-    if (zone == ZONE_SAFE) {
-      gOn = true;
-    } else if (zone == ZONE_CAUTION) {
-      yOn = true;
-    } else if (zone == ZONE_DANGER) {
-      rOn = true;
-    } else {
-      // Exiting debounce blink
-      yOn = ((nowMs / 250UL) % 2UL == 0UL);
+  // Overstay strobe takes visual priority if parked > 180 sim min
+  bool isOverstay = false;
+  if (state == STATE_OCCUPIED || state == STATE_EXITING) {
+    int simMin = 0;
+    int simSec = 0;
+    splitSimTime(parkStartMs[bayIdx], nowMs, timeScale, &simMin, &simSec);
+    if (simMin > OVERSTAY_MIN) {
+      isOverstay = true;
     }
+  }
 
-    // Visual pulse on Red LED if bay is in overstay (> 180 sim min)
-    if (state == STATE_OCCUPIED || state == STATE_EXITING) {
-      int simMin = 0;
-      int simSec = 0;
-      splitSimTime(parkStartMs[bayIdx], nowMs, timeScale, &simMin, &simSec);
-      if (simMin > OVERSTAY_MIN) {
-        rOn = ((nowMs / 250UL) % 2UL == 0UL);
-      }
-    }
+  if (isOverstay) {
+    bool strobe = ((nowMs / 250UL) % 2UL == 0UL);
+    rOn = strobe;
+    yOn = !strobe;
+  } else if (zone == ZONE_DANGER) {
+    // Rapid 150 ms flash synced with that bay's passive buzzer
+    rOn = ((nowMs / 150UL) % 2UL == 0UL);
+  } else if (zone == ZONE_CAUTION) {
+    yOn = true;
+  } else {
+    // AVAILABLE (>20 cm) or SAFE (11-20 cm)
+    gOn = true;
   }
 
   digitalWrite(gPin, gOn ? HIGH : LOW);
@@ -489,38 +517,72 @@ void updateBayLeds(int bayIdx, int state, int zone,
   digitalWrite(rPin, rOn ? HIGH : LOW);
 }
 
-// Buzzer sounds STRICTLY when a car exceeds 180 simulated minutes
-void updateOverstayBuzzer(const int states[], const unsigned long startTimes[],
-                          int numBays, unsigned long nowMs) {
-  int alertBay = -1;
+// Drives 3 independent 5V passive buzzers:
+//   - Pin A3 generates the shared square-wave tone() carrier via 2N2222 buffer
+//   - PCF8574 (0x24) pins P0, P1, P2 act as active-LOW ground switches per bay
+//   - Uses pure W03 subtraction (255 - 1 / - 2 / - 4) with zero bitwise shifts!
+void updateThreeBayBuzzers(const int states[], const int distArr[],
+                           const unsigned long startTimes[],
+                           int numBays, unsigned long nowMs) {
+  int mask = 255;              // Start with all 8 PCF8574 bits HIGH (0xFF = silent)
+  bool anyDangerActive = false;
+  bool anyOverstayActive = false;
 
   for (int i = 0; i < numBays; i++) {
+    int zone = classifyDistanceZone(distArr[i]);
+    bool isDanger = (zone == ZONE_DANGER);
+    bool isOverstay = false;
+
     if (states[i] == STATE_OCCUPIED || states[i] == STATE_EXITING) {
       int simMin = 0;
       int simSec = 0;
       splitSimTime(startTimes[i], nowMs, timeScale, &simMin, &simSec);
       if (simMin > OVERSTAY_MIN) {
-        alertBay = i;
-        break;
+        isOverstay = true;
       }
+    }
+
+    bool gateLowNow = false;
+    if (isDanger) {
+      // Priority 1 per bay: rapid 150 ms ON / 150 ms OFF collision alert
+      anyDangerActive = true;
+      gateLowNow = ((nowMs / 150UL) % 2UL == 0UL);
+    } else if (isOverstay) {
+      // Priority 2 per bay: slow 500 ms ON / 1000 ms OFF overstay pulse
+      anyOverstayActive = true;
+      gateLowNow = ((nowMs % 1500UL) < 500UL);
+    }
+
+    if (gateLowNow) {
+      // Pull P0 (-1), P1 (-2), or P2 (-4) LOW to sink current for Bay i's buzzer
+      mask = mask - BUZZER_BIT_WEIGHT[i];
     }
   }
 
-  if (alertBay == -1) {
-    noTone(BUZZER_PIN);
-    return;
+  // Only send I2C byte to PCF8574 (0x24) when gate state actually changed
+  if (mask != lastBuzzerMask) {
+    writeBuzzerBus(mask);
   }
 
-  // Bay-coded beep pattern: 1 beep = Bay 1, 2 beeps = Bay 2, 3 beeps = Bay 3
-  int beepCount = alertBay + 1;
-  unsigned long cyclePos = nowMs % 1500UL;
-  int slot = (int)(cyclePos / 200UL);
-  bool beepActive = (slot < beepCount * 2) && (slot % 2 == 0);
+  // Arbitrate shared Pin A3 Timer 2 carrier frequency
+  int targetHz = 0;
+  if (mask < 255) {
+    if (anyDangerActive && anyOverstayActive) {
+      targetHz = FREQ_MIXED_HZ;      // 2000 Hz shared when both happen at once
+    } else if (anyDangerActive) {
+      targetHz = FREQ_DANGER_HZ;     // 2500 Hz sharp tone for Danger-only
+    } else if (anyOverstayActive) {
+      targetHz = FREQ_OVERSTAY_HZ;   // 1800 Hz lower tone for Overstay-only
+    }
+  }
 
-  if (beepActive) {
-    tone(BUZZER_PIN, BUZZER_FREQ_HZ);
-  } else {
-    noTone(BUZZER_PIN);
+  if (targetHz != lastCarrierHz) {
+    if (targetHz == 0) {
+      noTone(BUZZER_TONE_PIN);
+    } else {
+      tone(BUZZER_TONE_PIN, targetHz);
+    }
+    lastCarrierHz = targetHz;
   }
 }
 
@@ -699,9 +761,11 @@ void handleSerialCommands(unsigned long nowMs) {
         Serial.print(occCount);
         Serial.print("/3 | Overstay: ");
         Serial.print(overCount);
-        Serial.print(" | Sessions: ");
-        Serial.print(totalCompletedSessions);
-        Serial.print(" | Revenue: RM ");
+        Serial.print(" | PCF8574(0x24) Mask: ");
+        Serial.print(lastBuzzerMask);
+        Serial.print(" | Carrier: ");
+        Serial.print(lastCarrierHz);
+        Serial.print("Hz | Revenue: RM ");
         Serial.println(totalRevenueRM);
 
         if (openBay != -1) {
@@ -731,7 +795,7 @@ void handleSerialCommands(unsigned long nowMs) {
       case 'R':
       case 'r':
         resetAllBays(bayState, NUM_BAYS);
-        Serial.println("[RESET] All 3 bays reset to AVAILABLE.");
+        Serial.println("[RESET] All 3 bays & 3 buzzers reset to AVAILABLE.");
         break;
 
       default:
@@ -748,7 +812,9 @@ void resetAllBays(int states[], int numBays) {
     exitStartMs[i] = 0;
     lastShownKey[i] = -1;
   }
-  noTone(BUZZER_PIN);
+  writeBuzzerBus(255);
+  noTone(BUZZER_TONE_PIN);
+  lastCarrierHz = 0;
 }
 `;
 
@@ -758,40 +824,40 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     week: 'W02',
     topic: 'Variables, Data Types & Constants',
     whereUsed: 'Section 1 (Constants) & Section 2 (State Variables)',
-    searchAnchor: 'const int NUM_BAYS = 3;',
-    codeExcerpt: 'const int SETTLE_HOLD_MS = 5000UL; bool debugDistance = false;',
+    searchAnchor: 'const int PCF8574_BUZZER_ADDR = 0x24;',
+    codeExcerpt: 'const int BUZZER_TONE_PIN = A3; const int PCF8574_BUZZER_ADDR = 0x24;',
     explanation:
-      'Uses standard KIE1004 primitive types (int, bool, char, unsigned long for millisecond timers) and ALL_CAPS const identifiers instead of magic numbers or raw #define macros.',
+      'Uses standard KIE1004 primitive types (int, bool, char, unsigned long for millisecond timers) and ALL_CAPS const identifiers for pins, I2C addresses, and carrier frequencies.',
   },
   {
     id: 'w03',
     week: 'W03',
     topic: 'Arithmetic, Modulus (%) & Math Helpers',
-    whereUsed: 'Section 6 (Smoothing), Section 7 (Fee), Section 11 (Clock)',
-    searchAnchor: 'int billableHours = (billableMin + 59) / 60;',
-    codeExcerpt: '*simMinPtr = (int)(simTotalSec / 60UL); *simSecPtr = (int)(simTotalSec % 60UL);',
+    whereUsed: 'Section 7 (Fee), Section 9 (PCF8574 Byte Mask), Section 11 (Clock)',
+    searchAnchor: 'mask = mask - BUZZER_BIT_WEIGHT[i];',
+    codeExcerpt: 'mask = mask - BUZZER_BIT_WEIGHT[i]; // 255 - 1, - 2, - 4 (Active-LOW)',
     explanation:
-      'Applies integer division (/), modulus (%) for MM:SS clock splitting and ring-buffer wrap-around, ceiling division for hourly billing, compound assignment (+=), and abs() for +-1 cm stationary checks.',
+      'Applies plain subtraction (255 - 1 / - 2 / - 4) to build the PCF8574 0x24 active-LOW gate byte with zero bitwise shifts, alongside integer ceiling division, modulus (%), and abs() for ±1 cm stillness checks.',
   },
   {
     id: 'w04',
     week: 'W04',
     topic: 'Selection (if / else if / switch / Ternary)',
-    whereUsed: 'Section 7 (Zones), Section 8 (FSM switch), Section 12 (Serial switch)',
-    searchAnchor: 'switch (bayState[i]) {',
-    codeExcerpt: 'if (distCm > DIST_ENTRY_MAX_CM) return ZONE_AVAILABLE; else if (...)',
+    whereUsed: 'Section 7 (Zones), Section 8 (FSM switch), Section 9 (Pitch Arbitration)',
+    searchAnchor: 'if (anyDangerActive && anyOverstayActive) {',
+    codeExcerpt: 'if (isDanger) ... else if (isOverstay) ...',
     explanation:
-      'Drives all 4 FSM states via switch/case/break, classifies distance zones via else-if chains, combines relational and logical operators (&&, ||, !), and uses ternary (?:) for pin HIGH/LOW and mode toggling.',
+      'Drives all 4 FSM states via switch/case/break, prioritizes per-bay Danger over Overstay alerts, and selects the Pin A3 carrier pitch (2500 / 1800 / 2000 Hz) using clean else-if chains.',
   },
   {
     id: 'w05',
     week: 'W05',
     topic: 'Loops & Nested Repetition (for, while)',
-    whereUsed: 'Section 4 (loop LED sweep), Section 5 (nested pin init), Section 10 & 12',
+    whereUsed: 'Section 4 (LED & Buzzer sweeps), Section 5 (nested pin init), Section 10 & 12',
     searchAnchor: 'for (int j = 0; j < LEDS_PER_BAY; j++) {',
-    codeExcerpt: 'while (Serial.available() > 0) { ... }',
+    codeExcerpt: 'for (int i = 0; i < numBays; i++) { ... }',
     explanation:
-      'Uses counter-controlled for loops to iterate across the 3 bays and nested for loops for the 3x3 LED matrix, plus while loops for character padding and draining the Serial input buffer.',
+      'Uses counter-controlled for loops to evaluate all 3 bays, LEDs, and passive buzzer gates, nested for loops for the 3×3 LED matrix, and while loops for LCD padding and Serial reading.',
   },
   {
     id: 'w06',
@@ -801,7 +867,7 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     searchAnchor: 'if (cm < DIST_MIN_CM || cm > DIST_MAX_CM)',
     codeExcerpt: 'bool inSlot = (distCm >= DIST_MIN_CM && distCm <= DIST_ENTRY_MAX_CM);',
     explanation:
-      'Validates ultrasonic pulse echoes against physical sensor bounds (2-400 cm) and rejects invalid 0-us timeouts before feeding data into the stationary confirmation logic.',
+      'Validates ultrasonic pulse echoes against physical sensor bounds (2–400 cm) and rejects invalid 0-µs timeouts before feeding data into the stationary confirmation and buzzer logic.',
   },
   {
     id: 'w07',
@@ -811,7 +877,7 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     searchAnchor: 'int  calculateParkingFee(int elapsedMin, int graceMin = GRACE_MINUTES,',
     codeExcerpt: 'static unsigned long lastSensorMs = 0; static int activeSensorBay = 0;',
     explanation:
-      'Declares every user-defined function prototype at the top of the sketch, applies default trailing parameters on calculateParkingFee(), and uses static local variables (W07 Slide 22) for non-blocking timers.',
+      'Declares every user-defined function prototype at the top of the sketch, applies default trailing parameters on calculateParkingFee(), and uses static local variables for non-blocking timers.',
   },
   {
     id: 'w08',
@@ -828,10 +894,10 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     week: 'W09',
     topic: '1D Parallel Arrays & Passing Arrays to Functions',
     whereUsed: 'Section 2 (Parallel Arrays) & Section 5, 9, 11, 12',
-    searchAnchor: 'int bayState[NUM_BAYS]',
-    codeExcerpt: 'void resetAllBays(int states[], int numBays)',
+    searchAnchor: 'const int BUZZER_BIT_WEIGHT[NUM_BAYS] = { 1, 2, 4 };',
+    codeExcerpt: 'void updateThreeBayBuzzers(const int states[], const int distArr[], ...)',
     explanation:
-      'Replaces advanced C++ structs with clean, synchronized 1D parallel arrays indexed by bay (0..2), passed into modular functions with const int[] read-only safety parameters (W09 Slide 18).',
+      'Replaces advanced C++ structs with synchronized 1D parallel arrays indexed by bay (0..2)—including BUZZER_BIT_WEIGHT[3] for P0/P1/P2—passed with const int[] read-only safety.',
   },
   {
     id: 'w10',
@@ -841,7 +907,7 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     searchAnchor: 'const int LED_PINS[NUM_BAYS][LEDS_PER_BAY] = {',
     codeExcerpt: 'void updateBayLeds(..., const int ledMatrix[][LEDS_PER_BAY])',
     explanation:
-      'Maps all 9 LEDs into a 3x3 2D array (rows = bays, cols = G/Y/R) and stores each bay\'s last 3 ultrasonic readings in a 3x3 history matrix, specifying fixed column size when passed to functions (W10 Slide 7).',
+      'Maps all 9 LEDs into a 3×3 2D array (rows = bays, cols = G/Y/R) and stores each bay\'s last 3 ultrasonic readings in a 3×3 history matrix, specifying fixed column size when passed to functions.',
   },
   {
     id: 'w11',
@@ -851,7 +917,7 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
     searchAnchor: 'void insertionSort(int items[], int n) {',
     codeExcerpt: 'int findFirstAvailableBay(const int states[], int numBays)',
     explanation:
-      'Applies exact Week 11 Insertion Sort on each bay\'s 3-sample ultrasonic window to extract the spike-free median, and uses Week 11 Linear Search to locate the first available bay (-1 if full).',
+      'Applies exact Insertion Sort on each bay\'s 3-sample ultrasonic window to extract the spike-free median, and uses Linear Search to locate the first available bay (-1 if full).',
   },
   {
     id: 'w12_13',
@@ -867,26 +933,32 @@ export const SYLLABUS_CONCEPT_MAP: SyllabusConceptEntry[] = [
 
 export const REMOVED_ADVANCED_CONCEPTS: AdvancedRemovedEntry[] = [
   {
+    removedFeature: 'Bitwise Operators (~, <<, |) & External PCF8574 Libraries',
+    whyRemoved: 'Bitwise bit-packing and third-party I/O expander wrapper classes are unnecessary outside introductory C++.',
+    kie1004Replacement: 'Plain W03 arithmetic (mask = 255 - 1 / - 2 / - 4) with a 4-line built-in Wire.write(mask) helper to 0x24.',
+    weekRef: 'W03 & W09',
+  },
+  {
     removedFeature: 'C++ struct (ParkingBay) & Member Access (.)',
     whyRemoved: 'Not covered in KIE1004 W01–W13 lectures.',
-    kie1004Replacement: 'Synchronized 1D parallel arrays (bayState[3], parkStartMs[3]) + 2D arrays (LED_PINS[3][3], distHistory[3][3]).',
+    kie1004Replacement: 'Synchronized 1D parallel arrays (bayState[3], parkStartMs[3], BUZZER_BIT_WEIGHT[3]) + 2D arrays (LED_PINS[3][3], distHistory[3][3]).',
     weekRef: 'W09 & W10',
   },
   {
     removedFeature: 'enum / enum class Scoped Types',
     whyRemoved: 'Not covered in KIE1004 W01–W13 lectures.',
-    kie1004Replacement: 'Named const int state & zone constants (STATE_AVAILABLE = 0, STATE_SETTLING = 1, etc.).',
+    kie1004Replacement: 'Named const int state & zone constants (STATE_AVAILABLE = 0, ZONE_DANGER = 3, etc.).',
     weekRef: 'W02',
   },
   {
     removedFeature: 'Fixed-Width Types (uint8_t, uint16_t, uint32_t)',
     whyRemoved: 'AVR C99 typedefs outside introductory W02 data types.',
-    kie1004Replacement: 'Standard W02 types: int, bool, char, and unsigned long (justified for millis/pulseIn precision per W02 Slide 22).',
+    kie1004Replacement: 'Standard W02 types: int, bool, char, and unsigned long (justified for millis/pulseIn precision).',
     weekRef: 'W02',
   },
   {
     removedFeature: 'C-Style snprintf() / strcmp() / printf()',
-    whyRemoved: 'W02 Slide 11 explicitly instructs students to avoid old-school C printf formatting.',
+    whyRemoved: 'Introductory C++ explicitly avoids old-school C printf formatting.',
     kie1004Replacement: 'Overloaded printTwoDigits() + while-loop printPaddedText() + integer displayKey dirty checking.',
     weekRef: 'W02, W05 & W08',
   },

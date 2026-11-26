@@ -17,8 +17,8 @@ export const EngineeringCalculations: React.FC = () => {
   const [resistorOhms, setResistorOhms] = useState<number>(330);
   const [activeLcdCount, setActiveLcdCount] = useState<number>(3);
   const [activeLedsCount, setActiveLedsCount] = useState<number>(3);
-  const [buzzerOn, setBuzzerOn] = useState<boolean>(true);
-  const [pullupBackpacks, setPullupBackpacks] = useState<number>(3);
+  const [activeBuzzerCount, setActiveBuzzerCount] = useState<number>(0);
+  const [pullupDevices, setPullupDevices] = useState<number>(4);
   const [tariffMins, setTariffMins] = useState<number>(76);
 
   const budget = calculateElectricalBudget({
@@ -26,8 +26,8 @@ export const EngineeringCalculations: React.FC = () => {
     activeLcdCount,
     lcdBacklightMa: 25,
     activeLedsCount,
-    buzzerOn,
-    i2cBackpacksWithPullups: pullupBackpacks,
+    activeBuzzerCount,
+    i2cDevicesWithPullups: pullupDevices,
   });
 
   const billableMins = Math.max(0, tariffMins - ENGINEERING_CONSTANTS.FREE_PARKING_MINS);
@@ -36,6 +36,8 @@ export const EngineeringCalculations: React.FC = () => {
   const isOverstay = tariffMins > ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
 
   const mcuPct = Math.min(100, Math.round((budget.mcuTotalWorstCaseMa / 200) * 100));
+  const pcfPct = Math.min(100, Math.round((budget.pcf8574SinkWorstCaseMa / 80) * 100));
+  const npnPct = Math.min(100, Math.round((budget.transistorLoadWorstCaseMa / 600) * 100));
   const usbPct = Math.min(100, Math.round((budget.usbTotalWorstCaseMa / 500) * 100));
 
   return (
@@ -157,42 +159,47 @@ export const EngineeringCalculations: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <label htmlFor="pullup-slider" className="text-[#202124]">
-                    PCF8574 Backpacks w/ Onboard 4.7 kΩ Pull-Ups
+                    I2C Modules w/ 4.7 kΩ Pull-Ups (3× LCD + 0x24)
                   </label>
                   <span className="font-mono tabular-nums font-medium text-[#1A73E8]">
-                    {pullupBackpacks} → {budget.parallelI2cPullupKOhm} kΩ
+                    {pullupDevices} → {budget.parallelI2cPullupKOhm} kΩ
                   </span>
                 </div>
                 <input
                   id="pullup-slider"
                   type="range"
                   min={1}
-                  max={3}
+                  max={4}
                   step={1}
-                  value={pullupBackpacks}
-                  onChange={(e) => setPullupBackpacks(Number(e.target.value))}
+                  value={pullupDevices}
+                  onChange={(e) => setPullupDevices(Number(e.target.value))}
                   className="m3-slider w-full"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-[#202124]">Pin A3 Overstay Buzzer (15 mA)</span>
-                <button
-                  type="button"
-                  onClick={() => setBuzzerOn((b) => !b)}
-                  aria-pressed={buzzerOn}
-                  className={`px-3 py-1 text-xs cursor-pointer border ${
-                    buzzerOn
-                      ? 'bg-[#1A73E8] border-[#1A73E8] text-white font-medium'
-                      : 'bg-white border-[#DADCE0] text-[#5F6368]'
-                  }`}
-                >
-                  {buzzerOn ? 'Buzzer ON' : 'Buzzer OFF'}
-                </button>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <label htmlFor="buzzer-count-slider" className="text-[#202124]">
+                    Simultaneous Active Passive Buzzers (0x24 P0–P2)
+                  </label>
+                  <span className="font-mono tabular-nums font-medium text-[#C5221F]">
+                    {activeBuzzerCount} / 3 ({budget.pcf8574SinkTypicalMa} mA sink)
+                  </span>
+                </div>
+                <input
+                  id="buzzer-count-slider"
+                  type="range"
+                  min={0}
+                  max={3}
+                  step={1}
+                  value={activeBuzzerCount}
+                  onChange={(e) => setActiveBuzzerCount(Number(e.target.value))}
+                  className="m3-slider w-full"
+                />
               </div>
             </div>
 
-            <div className="bg-[#F8F9FA] p-3 border border-[#DADCE0] space-y-2.5 text-xs tabular-nums">
+            <div className="bg-[#F8F9FA] p-3 border border-[#DADCE0] space-y-2 text-xs tabular-nums">
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[#202124]">ATmega328P MCU (Max 200 mA)</span>
@@ -205,6 +212,33 @@ export const EngineeringCalculations: React.FC = () => {
                     className={budget.mcuWithinSpec ? 'h-full bg-[#137333]' : 'h-full bg-[#C5221F]'}
                     style={{ width: `${mcuPct}%` }}
                   />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#202124]">PCF8574 (0x24) Sink (Max 80 mA)</span>
+                  <span className={`font-mono font-medium ${budget.pcf8574WithinSpec ? 'text-[#137333]' : 'text-[#C5221F]'}`}>
+                    {budget.pcf8574SinkWorstCaseMa} mA ({pcfPct}%)
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[#E8EAED] overflow-hidden">
+                  <div
+                    className={budget.pcf8574WithinSpec ? 'h-full bg-[#137333]' : 'h-full bg-[#C5221F]'}
+                    style={{ width: `${pcfPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#202124]">2N2222 Emitter Follower (Max 600 mA)</span>
+                  <span className="font-mono font-medium text-[#137333]">
+                    {budget.transistorLoadWorstCaseMa} mA ({npnPct}%)
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[#E8EAED] overflow-hidden">
+                  <div className="h-full bg-[#137333]" style={{ width: `${Math.max(4, npnPct)}%` }} />
                 </div>
               </div>
 
@@ -224,7 +258,7 @@ export const EngineeringCalculations: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1.5 pt-1 text-[11px]">
-                {budget.mcuWithinSpec && budget.usbWithinSpec ? (
+                {budget.mcuWithinSpec && budget.usbWithinSpec && budget.pcf8574WithinSpec ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#137333] shrink-0" />
                     <span className="text-[#137333]">
@@ -243,7 +277,7 @@ export const EngineeringCalculations: React.FC = () => {
 
           <div className="lg:col-span-7 bg-white border border-[#DADCE0] p-4 space-y-3">
             <h3 className="text-xs font-medium text-[#202124] border-b border-[#E8EAED] pb-2">
-              LaTeX-Style Datasheet Proofs (Inter Mathematical Typography)
+              LaTeX-Style Datasheet Proofs (Inter Mathematical Typography · v3.1)
             </h3>
 
             {[
@@ -260,21 +294,21 @@ export const EngineeringCalculations: React.FC = () => {
               },
               {
                 num: '(2)',
-                title: 'ATmega328P V_CC / GND Pin Current (Worst-Case All 9 LEDs + Buzzer + I2C)',
+                title: 'ATmega328P V_CC / GND Pin Current (All 9 LEDs + 1.0 mA A3 Base Drive + I2C)',
                 body: (
                   <>
-                    <var>I</var><sub>MCU,max</sub> <span className="op">=</span> 15.0 + {budget.allNineLedsMa} + 15.0 + {budget.i2cSinkMa} <span className="op">=</span>{' '}
+                    <var>I</var><sub>MCU,max</sub> <span className="op">=</span> 15.0 + {budget.allNineLedsMa} + 1.0 + {budget.i2cSinkMa} <span className="op">=</span>{' '}
                     <span className="not-italic font-medium text-[#137333]">{budget.mcuTotalWorstCaseMa} mA</span>{' '}
-                    <span className="text-xs not-italic text-[#5F6368]">&lt; 200 mA limit (Typ: {budget.mcuTotalTypicalMa} mA)</span>
+                    <span className="text-xs not-italic text-[#5F6368]">&lt; 200 mA limit (2N2222 offloads 45 mA buzzers!)</span>
                   </>
                 ),
               },
               {
                 num: '(3)',
-                title: `Total USB 5V Bus Load (MCU + 3× HC-SR04 + ${activeLcdCount}× Backlit I2C LCDs)`,
+                title: `Total USB 5V Bus Load (MCU + 3× HC-SR04 + ${activeLcdCount}× LCD + 2N2222/0x24 3× Buzzers)`,
                 body: (
                   <>
-                    <var>I</var><sub>USB,max</sub> <span className="op">=</span> {budget.mcuTotalWorstCaseMa} + 45.0 + ({activeLcdCount} × 30.0) <span className="op">=</span>{' '}
+                    <var>I</var><sub>USB,max</sub> <span className="op">=</span> {budget.mcuTotalWorstCaseMa} + 45.0 + ({activeLcdCount} × 30.0) + {budget.buzzerSubSystemWorstCaseMa} <span className="op">=</span>{' '}
                     <span className="not-italic font-medium text-[#1A73E8]">{budget.usbTotalWorstCaseMa} mA</span>{' '}
                     <span className="text-xs not-italic text-[#5F6368]">&lt; 500 mA polyfuse (Typ: {budget.usbTotalTypicalMa} mA)</span>
                   </>
@@ -282,14 +316,17 @@ export const EngineeringCalculations: React.FC = () => {
               },
               {
                 num: '(4)',
-                title: `Parallel PCF8574 I2C Pull-Up Impedance (${pullupBackpacks}× Onboard 4.7 kΩ in Parallel)`,
+                title: `Parallel I2C Pull-Ups (${pullupDevices}× 4.7 kΩ) & PCF8574 (0x24) 3-Buzzer Sink`,
                 body: (
                   <>
-                    <var>R</var><sub>eq</sub> <span className="op">=</span> 4.7 kΩ / {pullupBackpacks} <span className="op">=</span>{' '}
+                    <var>R</var><sub>eq</sub> <span className="op">=</span> 4.7 kΩ / {pullupDevices} <span className="op">=</span>{' '}
                     <span className="not-italic font-medium text-[#202124]">{budget.parallelI2cPullupKOhm} kΩ</span>
-                    <span className="op px-2">⇒</span>
-                    <var>I</var><sub>sink</sub> <span className="op">=</span>{' '}
+                    <span className="op px-1.5">⇒</span>
+                    <var>I</var><sub>I2C</sub> <span className="op">=</span>{' '}
                     <span className="not-italic font-medium text-[#1A73E8]">{budget.i2cSinkMa} mA</span>
+                    <span className="op px-1.5">·</span>
+                    <var>I</var><sub>PCF,max</sub> <span className="op">=</span>{' '}
+                    <span className="not-italic font-medium text-[#137333]">{budget.pcf8574SinkWorstCaseMa}/80 mA</span>
                   </>
                 ),
               },
@@ -338,7 +375,7 @@ export const EngineeringCalculations: React.FC = () => {
                 <rect x="420" y="132" width="240" height="62" fill="#E8F0FE" stroke="#1A73E8" strokeWidth="1.5" />
                 <text x="540" y="154" textAnchor="middle" fill="#174EA6" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">STATE_OCCUPIED</text>
                 <text x="540" y="171" textAnchor="middle" fill="#202124" fontSize="9.5" fontFamily="Inter, sans-serif">Count-Up Starts Cleanly at 00:00</text>
-                <text x="540" y="184" textAnchor="middle" fill="#C5221F" fontSize="9" fontWeight="500" fontFamily="Inter, sans-serif">&gt; 180 min → Overstay Buzzer (A3)</text>
+                <text x="540" y="184" textAnchor="middle" fill="#C5221F" fontSize="9" fontWeight="500" fontFamily="Inter, sans-serif">&gt;180m → 1800 Hz · Danger → 2500 Hz (0x24)</text>
 
                 <rect x="20" y="132" width="190" height="62" fill="#FCE8E6" stroke="#C5221F" strokeWidth="1.4" />
                 <text x="115" y="154" textAnchor="middle" fill="#A50E0E" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">STATE_EXITING</text>
@@ -412,7 +449,7 @@ export const EngineeringCalculations: React.FC = () => {
                   Interactive Grace-First Tariff &amp; Overstay Verifier
                 </h3>
                 <p className="text-[11px] font-light text-[#5F6368] mt-0.5">
-                  Verify exact integer ceiling division boundaries and &gt;180 min Pin A3 overstay trigger.
+                  Verify exact integer ceiling division boundaries and &gt;180 min per-bay passive buzzer trigger (1800 Hz on 0x24).
                 </p>
               </div>
 
@@ -485,7 +522,9 @@ export const EngineeringCalculations: React.FC = () => {
               <span className="font-medium">
                 {isOverstay ? 'OVERSTAY EXCEEDED (> 180 m)' : 'WITHIN 3-HOUR LIMIT'}
               </span>
-              <span className="font-mono">{isOverstay ? 'Buzzer A3: ON' : 'Buzzer A3: SILENT'}</span>
+              <span className="font-mono">
+                {isOverstay ? 'Bay Buzzer (0x24): ON 1800 Hz' : 'Bay Buzzer (0x24): SILENT'}
+              </span>
             </div>
           </div>
         </div>
@@ -503,7 +542,7 @@ export const EngineeringCalculations: React.FC = () => {
                 <thead>
                   <tr className="text-[#202124]">
                     <th className="py-2 pr-4 font-medium">Parameter</th>
-                    <th className="py-2 pr-4 font-medium">Assumed Value (v3.0)</th>
+                    <th className="py-2 pr-4 font-medium">Assumed Value (v3.1)</th>
                     <th className="py-2 font-medium">Engineering Justification</th>
                   </tr>
                 </thead>
@@ -513,7 +552,7 @@ export const EngineeringCalculations: React.FC = () => {
                       <td className="py-2.5 pr-4 font-medium text-[#202124] whitespace-nowrap">
                         {item.parameter}
                         {item.changed && (
-                          <span className="block text-[10px] font-mono text-[#1A73E8]">Updated v3.0</span>
+                          <span className="block text-[10px] font-mono text-[#1A73E8]">Updated v3.1</span>
                         )}
                       </td>
                       <td className="py-2.5 pr-4 font-mono text-[#202124] min-w-[200px]">{item.newValue}</td>

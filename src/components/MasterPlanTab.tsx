@@ -27,7 +27,7 @@ const SUBSYSTEM_FILTERS: WireSubsystemFilter[] = [
   'Ultrasonic Sensors',
   '9 LEDs & 330 Ω',
   '3× I2C LCDs',
-  'Overstay Buzzer',
+  '3× Passive Buzzers',
 ];
 
 export const MasterPlanTab: React.FC = () => {
@@ -324,15 +324,15 @@ export const MasterPlanTab: React.FC = () => {
               </p>
             </div>
             <div className="bg-white border border-[#DADCE0] border-l-[3px] border-l-[#1A73E8] p-3">
-              <div className="text-[10.5px] font-mono text-[#1A73E8] uppercase">3. I2C Breadboard Hub</div>
+              <div className="text-[10.5px] font-mono text-[#1A73E8] uppercase">3. 4-Device I2C Hub</div>
               <p className="text-xs font-light text-[#3C4043] mt-1">
-                Row 55 = SDA (Uno A4), Row 56 = SCL (Uno A5). Plug all 3 LCDs in parallel (0x27, 0x26, 0x25).
+                Row 55 = SDA (A4), Row 56 = SCL (A5). Plug 3 LCDs (0x27–0x25) + PCF8574 (0x24) in parallel.
               </p>
             </div>
             <div className="bg-white border border-[#DADCE0] border-l-[3px] border-l-[#137333] p-3">
-              <div className="text-[10.5px] font-mono text-[#137333] uppercase">4. Cap Polarity &amp; D0/D1</div>
+              <div className="text-[10.5px] font-mono text-[#137333] uppercase">4. 2N2222 &amp; 3 Buzzers</div>
               <p className="text-xs font-light text-[#3C4043] mt-1">
-                100 µF white (−) stripe MUST go to Blue GND rail. Leave pins D0 &amp; D1 completely empty.
+                A3→1kΩ→2N2222 Base; Emitter→Row 50 (TONE_BUS)→all 3 buzzers (+); (−)→0x24 P0/P1/P2.
               </p>
             </div>
           </div>
@@ -345,7 +345,7 @@ export const MasterPlanTab: React.FC = () => {
                   Exact Wire-by-Wire Circuit Assembly Checklist ({wiredCount}/{CIRCUIT_WIRING_GUIDE.length} Wired)
                 </h3>
                 <p className="text-[11px] font-light text-[#5F6368] mt-0.5">
-                  Plug each wire from P1 to B1 in order and tick the checkbox as you go.
+                  Plug each wire from P1 through B4 in order and tick the checkbox as you go.
                 </p>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -434,7 +434,7 @@ export const MasterPlanTab: React.FC = () => {
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#137333]" />
                 <h3 className="text-xs font-medium text-[#202124]">
-                  5-Point Pre-Power Smoke Test — Complete BEFORE Plugging USB Cable
+                  6-Point Pre-Power Smoke Test — Complete BEFORE Plugging USB Cable
                 </h3>
               </div>
               <span className="font-mono text-xs text-[#137333] font-medium">

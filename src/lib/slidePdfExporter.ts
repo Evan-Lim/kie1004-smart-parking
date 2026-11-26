@@ -51,14 +51,14 @@ function drawPdfDiagram(doc: jsPDF, slide: PresentationSlide, x: number, y: numb
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.8);
       doc.setTextColor(95, 99, 104);
-      doc.text('3 LEDs + HC-SR04', bx + 3, y + h - 18);
+      doc.text('3 LEDs + US + Buzzer', bx + 3, y + h - 18);
     });
     doc.setFillColor(26, 115, 232);
     doc.rect(x + 4, y + h - 11, w - 8, 8, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(255, 255, 255);
-    doc.text('ARDUINO UNO R3 · 20/20 PINS · 5-SEC STILLNESS · PIN A3 ALARM', x + w / 2, y + h - 5.5, { align: 'center' });
+    doc.text('UNO R3 (20/20) + 2N2222 + PCF8574 (0x24) · 3x PASSIVE BUZZERS', x + w / 2, y + h - 5.5, { align: 'center' });
     return;
   }
 
@@ -75,7 +75,7 @@ function drawPdfDiagram(doc: jsPDF, slide: PresentationSlide, x: number, y: numb
     doc.setFont('courier', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(32, 33, 36);
-    ['D0/D1 : USB Serial', 'D2-D7 : 3x HC-SR04', 'D8-13 : Bay 1&2 LED', 'A0-A2 : Bay 3 LED', 'A3    : Overstay Bz', 'A4/A5 : I2C 3x LCD'].forEach((line, i) => {
+    ['D0/D1 : USB Serial', 'D2-D7 : 3x HC-SR04', 'D8-13 : Bay 1&2 LED', 'A0-A2 : Bay 3 LED', 'A3    : 2N2222 Tone', 'A4/A5 : 4x I2C Bus'].forEach((line, i) => {
       doc.text(line, cx + 3, y + 27 + i * 7.5);
     });
     // Left sonar boxes
@@ -88,24 +88,33 @@ function drawPdfDiagram(doc: jsPDF, slide: PresentationSlide, x: number, y: numb
       doc.setTextColor(19, 115, 51);
       doc.text(s, x + 7, y + 21 + i * 18);
     });
-    // Right LCD & LED boxes
+    // Right LED, 2N2222 & 4x I2C boxes
     const rx = x + w * 0.70;
     const rw = w * 0.27;
     doc.setFillColor(254, 247, 224);
     doc.setDrawColor(176, 96, 0);
-    doc.rect(rx, y + 13, rw, 16, 'FD');
-    doc.setFontSize(7);
+    doc.rect(rx, y + 12, rw, 14, 'FD');
+    doc.setFontSize(6.8);
     doc.setTextColor(122, 65, 0);
-    doc.text('9 LEDs + 9x 330 Ohm', rx + 3, y + 22);
+    doc.text('9 LEDs + 9x 330 Ohm', rx + 3, y + 20.5);
+    doc.setFillColor(252, 232, 230);
+    doc.setDrawColor(197, 34, 31);
+    doc.rect(rx, y + 29, rw, 16, 'FD');
+    doc.setTextColor(165, 14, 14);
+    doc.text('2N2222 -> 3x Passive BZ', rx + 3, y + 36);
+    doc.setFont('courier', 'normal');
+    doc.text('(-) -> 0x24 P0/P1/P2', rx + 3, y + 42.5);
     doc.setFillColor(232, 240, 254);
     doc.setDrawColor(26, 115, 232);
-    doc.rect(rx, y + 34, rw, 34, 'FD');
+    doc.rect(rx, y + 48, rw, 36, 'FD');
+    doc.setFont('helvetica', 'bold');
     doc.setTextColor(23, 78, 166);
-    doc.text('Shared I2C Bus:', rx + 3, y + 41);
+    doc.text('4x Shared I2C Bus:', rx + 3, y + 54.5);
     doc.setFont('courier', 'normal');
-    doc.text('B1: 0x27 (Open)', rx + 3, y + 48);
-    doc.text('B2: 0x26 (A0)', rx + 3, y + 55);
-    doc.text('B3: 0x25 (A1)', rx + 3, y + 62);
+    doc.text('B1 LCD: 0x27 (Open)', rx + 3, y + 61);
+    doc.text('B2 LCD: 0x26 (A0)', rx + 3, y + 67.5);
+    doc.text('B3 LCD: 0x25 (A1)', rx + 3, y + 74);
+    doc.text('PCF8574: 0x24 (A0+A1)', rx + 3, y + 80.5);
     return;
   }
 
@@ -123,9 +132,9 @@ function drawPdfDiagram(doc: jsPDF, slide: PresentationSlide, x: number, y: numb
       doc.text(st, sx + sw / 2, y + 23.5, { align: 'center' });
     });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.3);
     doc.setTextColor(95, 99, 104);
-    doc.text('Round-Robin 40 ms Sensor Turns (Bay 1 -> Bay 2 -> Bay 3) + 200 ms Staggered LCD Refreshes', x + 4, y + 43);
+    doc.text('40 ms Sensor Turns + 200 ms Staggered LCDs + Dirty-Checked 0x24 3-Buzzer Gates', x + 4, y + 43);
     ['B1 0ms', 'B2 40ms', 'B3 80ms', 'B1 120ms', 'B2 160ms', 'B3 200ms'].forEach((slot, i) => {
       const sx = x + 4 + i * ((w - 14) / 6);
       doc.setFillColor(i % 3 === 0 ? 26 : i % 3 === 1 ? 19 : 176, i % 3 === 0 ? 115 : i % 3 === 1 ? 115 : 96, i % 3 === 0 ? 232 : i % 3 === 1 ? 51 : 0);

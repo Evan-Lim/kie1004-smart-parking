@@ -5,8 +5,9 @@ import {
   calculateElectricalBudget,
   calculateParkingFee,
   classifyDistance,
+  computeBayBuzzer,
   computeBayLeds,
-  computeOverstayBuzzer,
+  computeBuzzerBus,
   createInitialBay,
   formatBayLcdLines,
   restoreFromEeprom,
@@ -89,19 +90,70 @@ test('5-second stationary hold resets on motion (>1 cm) and starts count-up at 0
   assert.equal(bay.isOverstaying, false);
 });
 
-test('Overstay buzzer remains silent during CAUTION/DANGER and sounds ONLY when time limit is exceeded', () => {
-  const b1 = { ...createInitialBay(0), zone: 'DANGER' as const, state: 'OCCUPIED' as const, isOverstaying: false };
-  const b2 = { ...createInitialBay(1), zone: 'CAUTION' as const, state: 'OCCUPIED' as const, isOverstaying: false };
-  const b3 = createInitialBay(2);
+test('3x independent passive buzzers enforce Danger (2500 Hz), Overstay (1800 Hz), Mixed (2000 Hz) & active-LOW 0x24 masks', () => {
+  const b1Safe = { ...createInitialBay(0), zone: 'SAFE' as const, state: 'OCCUPIED' as const, isOverstaying: false };
+  const b2Caution = { ...createInitialBay(1), zone: 'CAUTION' as const, state: 'OCCUPIED' as const, isOverstaying: false };
+  const b3Empty = createInitialBay(2);
 
-  const silent = computeOverstayBuzzer([b1, b2, b3], 1000);
-  assert.equal(silent.active, false);
+  // Silent baseline: all gates HIGH -> 0xFF (255), carrier 0 Hz
+  const silentBus = computeBuzzerBus([b1Safe, b2Caution, b3Empty], 0);
+  assert.equal(silentBus.anyAlerting, false);
+  assert.equal(silentBus.anySoundingNow, false);
+  assert.equal(silentBus.carrierFreqHz, 0);
+  assert.equal(silentBus.byteMask, 255);
+  assert.equal(silentBus.byteHex, '0xFF');
+  assert.equal(silentBus.byteBinary, '11111111');
 
-  const b2Over = { ...b2, elapsedSimMins: 185, isOverstaying: true };
-  const sounding = computeOverstayBuzzer([b1, b2Over, b3], 1000);
-  assert.equal(sounding.active, true);
-  assert.deepEqual(sounding.overstayBayNumbers, [2]);
-  assert.equal(sounding.freqHz, 2000);
+  // Bay 1 Danger (<5 cm) only -> 2500 Hz, 150 ms ON/OFF, P0 LOW -> 0xFE (254) at t=0, 0xFF at t=150
+  const b1Danger = { ...b1Safe, zone: 'DANGER' as const, filteredDistCm: 4 };
+  const dangerOn = computeBuzzerBus([b1Danger, b2Caution, b3Empty], 0);
+  assert.equal(dangerOn.carrierFreqHz, 2500);
+  assert.equal(dangerOn.byteMask, 254);
+  assert.equal(dangerOn.byteHex, '0xFE');
+  assert.deepEqual(dangerOn.dangerBayNumbers, [1]);
+  assert.equal(dangerOn.bays[0].isGateLow, true);
+  assert.equal(dangerOn.bays[1].isGateLow, false);
+
+  const dangerOff = computeBuzzerBus([b1Danger, b2Caution, b3Empty], 150);
+  assert.equal(dangerOff.byteMask, 255);
+  assert.equal(dangerOff.anySoundingNow, false);
+
+  // Bay 2 Overstay only -> 1800 Hz, 500 ms ON / 1000 ms OFF, P1 LOW -> 0xFD (253) at t=200, 0xFF at t=600
+  const b2Over = { ...b2Caution, elapsedSimMins: 185, isOverstaying: true };
+  const overOn = computeBuzzerBus([b1Safe, b2Over, b3Empty], 200);
+  assert.equal(overOn.carrierFreqHz, 1800);
+  assert.equal(overOn.byteMask, 253);
+  assert.equal(overOn.byteHex, '0xFD');
+  assert.deepEqual(overOn.overstayBayNumbers, [2]);
+
+  const overOff = computeBuzzerBus([b1Safe, b2Over, b3Empty], 600);
+  assert.equal(overOff.byteMask, 255);
+
+  // Simultaneous Mixed: Bay 1 Danger + Bay 3 Overstay -> 2000 Hz shared carrier, P0 & P2 LOW -> 255 - 1 - 4 = 250 (0xFA) at t=0
+  const b3Over = { ...createInitialBay(2), zone: 'SAFE' as const, state: 'OCCUPIED' as const, elapsedSimMins: 190, isOverstaying: true };
+  const mixedBothOn = computeBuzzerBus([b1Danger, b2Caution, b3Over], 0);
+  assert.equal(mixedBothOn.carrierFreqHz, 2000);
+  assert.equal(mixedBothOn.byteMask, 250);
+  assert.equal(mixedBothOn.byteHex, '0xFA');
+  assert.equal(mixedBothOn.activeSoundingCount, 2);
+  assert.deepEqual(mixedBothOn.dangerBayNumbers, [1]);
+  assert.deepEqual(mixedBothOn.overstayBayNumbers, [3]);
+
+  // At t=150ms, Bay 1 Danger is in OFF phase (150ms), while Bay 3 Overstay is still ON (<500ms) -> 255 - 4 = 251 (0xFB)
+  const mixedB3Only = computeBuzzerBus([b1Danger, b2Caution, b3Over], 150);
+  assert.equal(mixedB3Only.byteMask, 251);
+  assert.equal(mixedB3Only.byteHex, '0xFB');
+  assert.equal(mixedB3Only.carrierFreqHz, 2000);
+
+  // All 3 bays alerting & ON at t=0 -> 255 - 1 - 2 - 4 = 248 (0xF8)
+  const allThreeOn = computeBuzzerBus([b1Danger, b2Over, b3Over], 0);
+  assert.equal(allThreeOn.byteMask, 248);
+  assert.equal(allThreeOn.byteHex, '0xF8');
+  assert.equal(allThreeOn.activeSoundingCount, 3);
+
+  // Danger priority overrides Overstay on the same bay
+  const b1Both = { ...b1Danger, isOverstaying: true };
+  assert.equal(computeBayBuzzer(b1Both, 0).mode, 'DANGER');
 
   const leds = computeBayLeds(b2Over, 0);
   assert.equal(leds.red, true);
@@ -177,26 +229,34 @@ test('formatBayLcdLines always returns two exact 16-character strings including 
   assert.ok(o0.includes('RM9'), `Expected RM9 in "${o0}"`);
 });
 
-test('calculateElectricalBudget accurately computes 3-LCD, 9-LED, 330-ohm current budgets', () => {
+test('calculateElectricalBudget accurately computes 3-LCD, 9-LED, 2N2222, PCF8574 (0x24) & 3-passive-buzzer budgets', () => {
   const budget = calculateElectricalBudget({
     resistorOhms: 330,
     activeLcdCount: 3,
     lcdBacklightMa: 25,
     activeLedsCount: 3,
-    buzzerOn: true,
-    i2cBackpacksWithPullups: 3,
+    activeBuzzerCount: 0,
+    i2cDevicesWithPullups: 4,
   });
   assert.equal(budget.ledCurrentRedYellowMa, 9.09);
   assert.equal(budget.ledCurrentGreenMa, 8.48);
-  assert.equal(budget.parallelI2cPullupKOhm, 1.57);
+  assert.equal(budget.parallelI2cPullupKOhm, 1.18);
+  assert.equal(budget.i2cSinkMa, 4.26);
+  assert.equal(budget.mcuTotalTypicalMa, 46.5);
+  assert.equal(budget.mcuTotalWorstCaseMa, 100.3);
+  assert.equal(budget.pcf8574SinkWorstCaseMa, 45.0);
+  assert.equal(budget.transistorLoadWorstCaseMa, 49.3);
+  assert.equal(budget.buzzerSubSystemWorstCaseMa, 50.3);
+  assert.equal(budget.usbTotalTypicalMa, 141.5);
+  assert.equal(budget.usbTotalWorstCaseMa, 285.6);
   assert.equal(budget.mcuWithinSpec, true);
+  assert.equal(budget.pcf8574WithinSpec, true);
+  assert.equal(budget.transistorWithinSpec, true);
   assert.equal(budget.usbWithinSpec, true);
   assert.equal(budget.pinCurrentWithinSpec, true);
-  assert.ok(budget.mcuTotalWorstCaseMa < 200);
-  assert.ok(budget.usbTotalWorstCaseMa < 500);
 });
 
-test('ARDUINO_FIRMWARE_V3 strictly enforces KIE1004 W01-W13 syntax (no advanced structs/enums/snprintf)', () => {
+test('ARDUINO_FIRMWARE_V3 strictly enforces KIE1004 W01-W13 syntax & includes 3-buzzer PCF8574 0x24 logic', () => {
   const codeWithoutComments = ARDUINO_FIRMWARE_V3.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const bannedPatterns = [
     /\bstruct\s+/,
@@ -218,6 +278,10 @@ test('ARDUINO_FIRMWARE_V3 strictly enforces KIE1004 W01-W13 syntax (no advanced 
 
   const requiredConstructs = [
     'const int LED_PINS[NUM_BAYS][LEDS_PER_BAY]',
+    'const int PCF8574_BUZZER_ADDR = 0x24;',
+    'const int BUZZER_BIT_WEIGHT[NUM_BAYS] = { 1, 2, 4 };',
+    'void writeBuzzerBus(int activeLowMask)',
+    'void updateThreeBayBuzzers(',
     'void insertionSort(int items[], int n)',
     'int findFirstAvailableBay(const int states[], int numBays)',
     'int *occupiedPtr',
@@ -228,7 +292,7 @@ test('ARDUINO_FIRMWARE_V3 strictly enforces KIE1004 W01-W13 syntax (no advanced 
   for (const snippet of requiredConstructs) {
     assert.ok(
       ARDUINO_FIRMWARE_V3.includes(snippet),
-      `Expected W01-W13 construct missing: ${snippet}`,
+      `Expected W01-W13 / 3-buzzer construct missing: ${snippet}`,
     );
   }
 });
@@ -244,21 +308,22 @@ test('getSlidesPdfBytes generates a valid 10-page vector PDF binary without spok
   assert.equal(pageCountMatches.length, 10, `Expected 10 PDF pages, found ${pageCountMatches.length}`);
 });
 
-test('computeBomTotals calculates RM 69.70 default kit and dynamically updates when quantities change', () => {
+test('computeBomTotals calculates RM 76.70 default kit (11 items) and dynamically updates when quantities change', () => {
+  assert.equal(BOM_ITEMS.length, 11);
   const defaults = createDefaultBomQuantities(BOM_ITEMS);
   const base = computeBomTotals(BOM_ITEMS, defaults, {}, 5);
-  assert.equal(base.grandTotalRM, 69.7);
-  assert.equal(base.perStudentRM, 13.94);
+  assert.equal(base.grandTotalRM, 76.7);
+  assert.equal(base.perStudentRM, 15.34);
 
-  // Increase LCD count from 3 to 5 (+2 x RM 7.50 = +RM 15.00 -> RM 84.70)
+  // Increase LCD count from 3 to 5 (+2 x RM 7.50 = +RM 15.00 -> RM 91.70)
   const modified = computeBomTotals(BOM_ITEMS, { ...defaults, lcds: 5 }, { lcds: true }, 5);
-  assert.equal(modified.grandTotalRM, 84.7);
+  assert.equal(modified.grandTotalRM, 91.7);
   assert.equal(modified.checkedTotalRM, 37.5);
-  assert.equal(modified.perStudentRM, 16.94);
+  assert.equal(modified.perStudentRM, 18.34);
 
-  // Zero out Uno (-RM 18.00 -> RM 51.70)
+  // Zero out Uno (-RM 18.00 -> RM 58.70)
   const zeroed = computeBomTotals(BOM_ITEMS, { ...defaults, uno: 0 }, {}, 5);
-  assert.equal(zeroed.grandTotalRM, 51.7);
+  assert.equal(zeroed.grandTotalRM, 58.7);
 });
 
 test('PRESENTATION_SLIDES has 10 diversified slides, zero week numbers, and complete layperson scripts', () => {
@@ -285,5 +350,3 @@ test('PRESENTATION_SLIDES has 10 diversified slides, zero week numbers, and comp
     assert.ok(wordCount >= 60, `Slide ${slide.slideNumber} spoken script too short (${wordCount} words)`);
   }
 });
-
-

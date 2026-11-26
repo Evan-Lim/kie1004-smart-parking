@@ -72,15 +72,15 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
               <rect x={slot.x + 16} y="134" width="84" height="36" fill="#E8F0FE" stroke="#1A73E8" />
               <circle cx={slot.x + 38} cy="152" r="9" fill="#FFFFFF" stroke="#1A73E8" />
               <circle cx={slot.x + 78} cy="152" r="9" fill="#FFFFFF" stroke="#1A73E8" />
-              <text x={slot.x + 58} y="177" textAnchor="middle" fontSize="7.5" fill="#5F6368" fontFamily="Inter, sans-serif">
-                HC-SR04 Sensor
+              <text x={slot.x + 58} y="177" textAnchor="middle" fontSize="7.3" fill="#5F6368" fontFamily="Inter, sans-serif">
+                HC-SR04 + Bay Buzzer
               </text>
             </g>
           ))}
           {/* Bottom Shared Uno Bar */}
           <rect x="20" y="190" width="380" height="24" fill="#1A73E8" />
-          <text x="210" y="205" textAnchor="middle" fontSize="9.5" fill="#FFFFFF" fontFamily="Inter, sans-serif" fontWeight="500">
-            ARDUINO UNO R3 (20/20 PINS) · 5-SEC STILLNESS RULE · PIN A3 OVERSTAY ALARM
+          <text x="210" y="205" textAnchor="middle" fontSize="9.2" fill="#FFFFFF" fontFamily="Inter, sans-serif" fontWeight="500">
+            UNO R3 (20/20) + 2N2222 + PCF8574 (0x24) · 3× PASSIVE BUZZERS
           </text>
         </svg>
       );
@@ -93,30 +93,30 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
             FIG. 2 — DISTANCE GUIDANCE ZONES (1:20 SCALE) &amp; AUTOMATED BILLING TIMELINE
           </text>
           {/* Distance bars */}
-          <rect x="16" y="34" width="110" height="32" fill="#FCE8E6" stroke="#C5221F" />
-          <text x="71" y="48" textAnchor="middle" fontSize="9" fill="#A50E0E" fontFamily="Inter, sans-serif" fontWeight="500">DANGER (2–5 cm)</text>
-          <text x="71" y="60" textAnchor="middle" fontSize="8" fill="#5F6368" fontFamily="Inter, sans-serif">Red LED Flashes</text>
+          <rect x="16" y="34" width="118" height="32" fill="#FCE8E6" stroke="#C5221F" />
+          <text x="75" y="48" textAnchor="middle" fontSize="8.8" fill="#A50E0E" fontFamily="Inter, sans-serif" fontWeight="500">DANGER (2–5 cm)</text>
+          <text x="75" y="60" textAnchor="middle" fontSize="7.6" fill="#C5221F" fontFamily="Inter, sans-serif">Red Flash + 2500Hz Beep</text>
 
-          <rect x="132" y="34" width="110" height="32" fill="#FEF7E0" stroke="#B06000" />
-          <text x="187" y="48" textAnchor="middle" fontSize="9" fill="#7A4100" fontFamily="Inter, sans-serif" fontWeight="500">CAUTION (6–10 cm)</text>
-          <text x="187" y="60" textAnchor="middle" fontSize="8" fill="#5F6368" fontFamily="Inter, sans-serif">Yellow LED Solid</text>
+          <rect x="140" y="34" width="108" height="32" fill="#FEF7E0" stroke="#B06000" />
+          <text x="194" y="48" textAnchor="middle" fontSize="8.8" fill="#7A4100" fontFamily="Inter, sans-serif" fontWeight="500">CAUTION (6–10 cm)</text>
+          <text x="194" y="60" textAnchor="middle" fontSize="7.6" fill="#5F6368" fontFamily="Inter, sans-serif">Yellow Solid (Silent)</text>
 
-          <rect x="248" y="34" width="120" height="32" fill="#E6F4EA" stroke="#137333" />
-          <text x="308" y="48" textAnchor="middle" fontSize="9" fill="#137333" fontFamily="Inter, sans-serif" fontWeight="500">SAFE (11–20 cm)</text>
-          <text x="308" y="60" textAnchor="middle" fontSize="8" fill="#5F6368" fontFamily="Inter, sans-serif">Green LED Solid</text>
+          <rect x="254" y="34" width="114" height="32" fill="#E6F4EA" stroke="#137333" />
+          <text x="311" y="48" textAnchor="middle" fontSize="8.8" fill="#137333" fontFamily="Inter, sans-serif" fontWeight="500">SAFE (11–20 cm)</text>
+          <text x="311" y="60" textAnchor="middle" fontSize="7.6" fill="#5F6368" fontFamily="Inter, sans-serif">Green Solid (Silent)</text>
 
           {/* Arrow into Billing Timeline */}
           <line x1="376" y1="50" x2="398" y2="50" stroke="#1A73E8" strokeWidth="1.5" />
           <polygon points="398,46 406,50 398,54" fill="#1A73E8" />
 
           <rect x="410" y="34" width="214" height="32" fill="#E8F0FE" stroke="#1A73E8" />
-          <text x="517" y="48" textAnchor="middle" fontSize="9" fill="#174EA6" fontFamily="Inter, sans-serif" fontWeight="500">STILL 5.0 s → COUNT UP 00:00</text>
-          <text x="517" y="60" textAnchor="middle" fontSize="8" fill="#3C4043" fontFamily="Inter, sans-serif">15m Free → RM 3/hr → &gt;180m Alarm</text>
+          <text x="517" y="48" textAnchor="middle" fontSize="8.8" fill="#174EA6" fontFamily="Inter, sans-serif" fontWeight="500">STILL 5.0 s → COUNT UP 00:00</text>
+          <text x="517" y="60" textAnchor="middle" fontSize="7.8" fill="#3C4043" fontFamily="Inter, sans-serif">15m Free → RM 3/hr → &gt;180m 1800Hz</text>
 
           {/* Bottom note */}
           <line x1="16" y1="84" x2="624" y2="84" stroke="#DADCE0" />
-          <text x="16" y="101" fontSize="8.5" fill="#5F6368" fontFamily="Inter, sans-serif">
-            Note: Distance guidance stays 100% silent via overhead traffic-light LEDs; the Pin A3 buzzer sounds strictly on overstay (&gt;180 min).
+          <text x="16" y="101" fontSize="8.3" fill="#5F6368" fontFamily="Inter, sans-serif">
+            Each bay’s dedicated passive buzzer sounds 2500 Hz rapid in Danger (&lt;5 cm), 1800 Hz slow on Overstay (&gt;180 m), or 2000 Hz if mixed.
           </text>
         </svg>
       );
@@ -155,35 +155,38 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
           <text x="168" y="108" fontSize="8" fill="#137333" fontFamily="JetBrains Mono, monospace">D2–D7 : 3× HC-SR04</text>
           <text x="168" y="124" fontSize="8" fill="#B06000" fontFamily="JetBrains Mono, monospace">D8–D13: Bay 1&amp;2 LED</text>
           <text x="168" y="140" fontSize="8" fill="#B06000" fontFamily="JetBrains Mono, monospace">A0–A2 : Bay 3 LED</text>
-          <text x="168" y="156" fontSize="8" fill="#C5221F" fontFamily="JetBrains Mono, monospace">A3    : Piezo Alarm</text>
-          <text x="168" y="172" fontSize="8" fill="#1A73E8" fontFamily="JetBrains Mono, monospace">A4    : I2C SDA Hub</text>
-          <text x="168" y="188" fontSize="8" fill="#1A73E8" fontFamily="JetBrains Mono, monospace">A5    : I2C SCL Hub</text>
+          <text x="168" y="156" fontSize="8" fill="#C5221F" fontFamily="JetBrains Mono, monospace">A3    : 2N2222 Tone</text>
+          <text x="168" y="172" fontSize="8" fill="#1A73E8" fontFamily="JetBrains Mono, monospace">A4    : I2C SDA (4×)</text>
+          <text x="168" y="188" fontSize="8" fill="#1A73E8" fontFamily="JetBrains Mono, monospace">A5    : I2C SCL (4×)</text>
           <rect x="170" y="202" width="112" height="24" fill="#FFFFFF" stroke="#AECBFA" />
-          <text x="226" y="217" textAnchor="middle" fontSize="8" fill="#174EA6" fontFamily="Inter, sans-serif">0 Expander Chips Needed</text>
+          <text x="226" y="217" textAnchor="middle" fontSize="7.8" fill="#174EA6" fontFamily="Inter, sans-serif">20/20 + PCF8574 (0x24)</text>
 
           {/* Right Top: 9 LEDs + 330 Ohm */}
-          <rect x="322" y="34" width="124" height="60" fill="#FEF7E0" stroke="#B06000" />
-          <text x="330" y="50" fontSize="8.5" fill="#7A4100" fontFamily="Inter, sans-serif" fontWeight="500">9 LEDs via 9× 330 Ω</text>
-          <text x="330" y="64" fontSize="7.8" fill="#3C4043" fontFamily="JetBrains Mono, monospace">B1: D8–10 · B2: D11–13</text>
-          <text x="330" y="78" fontSize="7.8" fill="#3C4043" fontFamily="JetBrains Mono, monospace">B3: A0–A2 (~9 mA ea)</text>
-          <line x1="294" y1="64" x2="322" y2="64" stroke="#B06000" strokeWidth="1.2" />
+          <rect x="320" y="34" width="126" height="52" fill="#FEF7E0" stroke="#B06000" />
+          <text x="327" y="49" fontSize="8.2" fill="#7A4100" fontFamily="Inter, sans-serif" fontWeight="500">9 LEDs via 9× 330 Ω</text>
+          <text x="327" y="62" fontSize="7.5" fill="#3C4043" fontFamily="JetBrains Mono, monospace">B1:D8–10 · B2:D11–13</text>
+          <text x="327" y="75" fontSize="7.5" fill="#3C4043" fontFamily="JetBrains Mono, monospace">B3:A0–A2 (~9 mA ea)</text>
+          <line x1="294" y1="60" x2="320" y2="60" stroke="#B06000" strokeWidth="1.2" />
 
-          {/* Right Mid: Buzzer */}
-          <rect x="322" y="102" width="124" height="34" fill="#FCE8E6" stroke="#C5221F" />
-          <text x="330" y="117" fontSize="8.5" fill="#A50E0E" fontFamily="Inter, sans-serif" fontWeight="500">Overstay Buzzer (A3)</text>
-          <text x="330" y="129" fontSize="7.5" fill="#5F6368" fontFamily="JetBrains Mono, monospace">2 kHz · 1×/2×/3× beep</text>
-          <line x1="294" y1="119" x2="322" y2="119" stroke="#C5221F" strokeWidth="1.2" />
+          {/* Right Mid: 2N2222 + 3 Passive Buzzers */}
+          <rect x="320" y="92" width="126" height="44" fill="#FCE8E6" stroke="#C5221F" />
+          <text x="327" y="106" fontSize="8.2" fill="#A50E0E" fontFamily="Inter, sans-serif" fontWeight="500">2N2222 → 3× Passive BZ</text>
+          <text x="327" y="118" fontSize="7.3" fill="#3C4043" fontFamily="JetBrains Mono, monospace">A3→1k→B · (+)→TONE_BUS</text>
+          <text x="327" y="130" fontSize="7.3" fill="#A50E0E" fontFamily="JetBrains Mono, monospace">(−)→0x24 P0 / P1 / P2</text>
+          <line x1="294" y1="114" x2="320" y2="114" stroke="#C5221F" strokeWidth="1.2" />
 
-          {/* Right Bottom: 3 I2C LCDs */}
-          <rect x="322" y="146" width="124" height="90" fill="#E8F0FE" stroke="#1A73E8" />
-          <text x="330" y="161" fontSize="8.5" fill="#174EA6" fontFamily="Inter, sans-serif" fontWeight="500">3× I2C LCDs (A4/A5)</text>
-          <rect x="330" y="168" width="108" height="18" fill="#163327" />
-          <text x="336" y="180" fontSize="7.8" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B1 0x27 (All Open)</text>
-          <rect x="330" y="190" width="108" height="18" fill="#163327" />
-          <text x="336" y="202" fontSize="7.8" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B2 0x26 (Bridge A0)</text>
-          <rect x="330" y="212" width="108" height="18" fill="#163327" />
-          <text x="336" y="224" fontSize="7.8" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B3 0x25 (Bridge A1)</text>
-          <line x1="294" y1="184" x2="322" y2="184" stroke="#1A73E8" strokeWidth="1.6" />
+          {/* Right Bottom: 4x I2C Bus */}
+          <rect x="320" y="142" width="126" height="96" fill="#E8F0FE" stroke="#1A73E8" />
+          <text x="327" y="156" fontSize="8.2" fill="#174EA6" fontFamily="Inter, sans-serif" fontWeight="500">4× I2C Bus (A4/A5)</text>
+          <rect x="327" y="162" width="112" height="15" fill="#163327" />
+          <text x="332" y="172" fontSize="7.3" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B1 LCD 0x27 (Open)</text>
+          <rect x="327" y="180" width="112" height="15" fill="#163327" />
+          <text x="332" y="190" fontSize="7.3" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B2 LCD 0x26 (A0)</text>
+          <rect x="327" y="198" width="112" height="15" fill="#163327" />
+          <text x="332" y="208" fontSize="7.3" fill="#B9F6CA" fontFamily="JetBrains Mono, monospace">B3 LCD 0x25 (A1)</text>
+          <rect x="327" y="216" width="112" height="16" fill="#C5221F" />
+          <text x="332" y="227" fontSize="7.3" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">PCF8574 0x24 (A0+A1)</text>
+          <line x1="294" y1="184" x2="320" y2="184" stroke="#1A73E8" strokeWidth="1.6" />
         </svg>
       );
 
@@ -252,8 +255,8 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
           <rect x="336" y="188" width="94" height="18" fill="#FEF7E0" stroke="#B06000" />
           <text x="383" y="200" textAnchor="middle" fontSize="7.8" fill="#7A4100" fontFamily="JetBrains Mono, monospace">Refresh LCD 3</text>
 
-          <text x="16" y="232" fontSize="8" fill="#5F6368" fontFamily="Inter, sans-serif">
-            Full 3-bay scan every 120 ms (8.3 Hz) · Each LCD updates every 600 ms only when text changes.
+          <text x="16" y="232" fontSize="7.8" fill="#5F6368" fontFamily="Inter, sans-serif">
+            Full 3-bay scan every 120 ms · LCDs every 200 ms · 0x24 buzzer byte written only on cadence edges.
           </text>
         </svg>
       );
@@ -266,22 +269,22 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
             FIG. 5 — RESOLVING CONFLICTING REQUIREMENTS (WP2)
           </text>
           {[
-            { conflict: '3 LCDs need 18 pins vs. 20 Uno pins', fix: 'I2C A0/A1 solder bridges → 2 pins', y: 34, c: '#1A73E8' },
-            { conflict: '3 LCD refreshes freeze sensors (~120 ms)', fix: 'Stagger 1 LCD / 200 ms + skip unchanged', y: 82, c: '#137333' },
-            { conflict: '5 s stillness check vs. ±1 cm sonar noise', fix: 'Median + EMA filter + ±1 cm cushion', y: 130, c: '#B06000' },
-            { conflict: 'Only 1 buzzer pin (A3) for 3 bays', fix: 'Bay-coded 1× / 2× / 3× overstay beeps', y: 178, c: '#C5221F' },
+            { conflict: '3 LCDs + 3 buzzers exceed 20 Uno pins', fix: '4× I2C (0x27–0x24) on shared A4/A5', y: 34, c: '#1A73E8' },
+            { conflict: '3 passive buzzers overload Pin A3 (45 mA)', fix: '2N2222 buffer (A3 ≤1 mA) + 0x24 sink', y: 82, c: '#C5221F' },
+            { conflict: '3 LCD refreshes freeze sensors (~120 ms)', fix: 'Stagger 1 LCD / 200 ms + skip unchanged', y: 130, c: '#137333' },
+            { conflict: '5 s stillness check vs. ±1 cm sonar noise', fix: 'Median + EMA filter + ±1 cm cushion', y: 178, c: '#B06000' },
           ].map((row) => (
             <g key={row.conflict}>
               <rect x="14" y={row.y} width="186" height="38" fill="#F8F9FA" stroke="#DADCE0" />
               <text x="20" y={row.y + 16} fontSize="7.8" fill="#5F6368" fontFamily="Inter, sans-serif">CONFLICT</text>
-              <text x="20" y={row.y + 30} fontSize="8.2" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{row.conflict}</text>
+              <text x="20" y={row.y + 30} fontSize="8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{row.conflict}</text>
 
               <line x1="200" y1={row.y + 19} x2="218" y2={row.y + 19} stroke={row.c} strokeWidth="1.5" />
               <polygon points={`214,${row.y + 16} 220,${row.y + 19} 214,${row.y + 22}`} fill={row.c} />
 
               <rect x="222" y={row.y} width="184" height="38" fill="#FFFFFF" stroke={row.c} />
               <text x="228" y={row.y + 16} fontSize="7.8" fill={row.c} fontFamily="Inter, sans-serif" fontWeight="500">RESOLUTION</text>
-              <text x="228" y={row.y + 30} fontSize="8.2" fill="#202124" fontFamily="Inter, sans-serif">{row.fix}</text>
+              <text x="228" y={row.y + 30} fontSize="8" fill="#202124" fontFamily="Inter, sans-serif">{row.fix}</text>
             </g>
           ))}
         </svg>
@@ -350,37 +353,42 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
 
     case 'electrical-cost':
       return (
-        <svg viewBox="0 0 420 220" className="w-full h-full" role="img" aria-label="Power headroom and RM 69.70 cost breakdown charts">
+        <svg viewBox="0 0 420 220" className="w-full h-full" role="img" aria-label="Power headroom and RM 76.70 cost breakdown charts">
           <rect x="4" y="4" width="412" height="212" fill="#FFFFFF" stroke="#DADCE0" />
           <text x="14" y="21" fontSize="9" fill="#1A73E8" fontFamily="Inter, sans-serif" fontWeight="500">
-            FIG. 6 — ELECTRICAL SAFETY HEADROOM &amp; RM 69.70 KIT BREAKDOWN
+            FIG. 6 — ELECTRICAL SAFETY HEADROOM &amp; RM 76.70 KIT BREAKDOWN
           </text>
 
-          {/* Left: Current Bars */}
-          <text x="16" y="42" fontSize="8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">ATmega328P MCU Pin Load (Limit 200 mA)</text>
-          <rect x="16" y="48" width="386" height="18" fill="#F4F6F9" stroke="#DADCE0" />
-          <rect x="16" y="48" width="218" height="18" fill="#1A73E8" />
-          <text x="24" y="60" fontSize="8" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">113.2 mA Peak (56.6% of 200 mA)</text>
+          {/* Current Bars */}
+          <text x="16" y="39" fontSize="7.8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">ATmega328P MCU Pin Load (Limit 200 mA)</text>
+          <rect x="16" y="44" width="386" height="15" fill="#F4F6F9" stroke="#DADCE0" />
+          <rect x="16" y="44" width="194" height="15" fill="#1A73E8" />
+          <text x="24" y="54.5" fontSize="7.6" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">100.3 mA Peak (50.1% · 2N2222 offloads buzzers)</text>
 
-          <text x="16" y="84" fontSize="8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">Total USB 5V Rail Load (Polyfuse Limit 500 mA)</text>
-          <rect x="16" y="90" width="386" height="18" fill="#F4F6F9" stroke="#DADCE0" />
-          <rect x="16" y="90" width="192" height="18" fill="#137333" />
-          <text x="24" y="102" fontSize="8" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">248.2 mA Peak (49.6% of 500 mA)</text>
+          <text x="16" y="72" fontSize="7.8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">PCF8574 (0x24) 3-Buzzer Sink (Limit 80 mA)</text>
+          <rect x="16" y="77" width="386" height="15" fill="#F4F6F9" stroke="#DADCE0" />
+          <rect x="16" y="77" width="217" height="15" fill="#B06000" />
+          <text x="24" y="87.5" fontSize="7.6" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">45.0 mA Peak (56.3% · 3× 15 mA)</text>
+
+          <text x="16" y="105" fontSize="7.8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">Total USB 5V Rail Load (Polyfuse Limit 500 mA)</text>
+          <rect x="16" y="110" width="386" height="15" fill="#F4F6F9" stroke="#DADCE0" />
+          <rect x="16" y="110" width="220" height="15" fill="#137333" />
+          <text x="24" y="120.5" fontSize="7.6" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">285.6 mA Peak (57.1% of 500 mA)</text>
 
           {/* Cost Breakdown Boxes */}
-          <line x1="16" y1="122" x2="402" y2="122" stroke="#DADCE0" />
-          <text x="16" y="138" fontSize="8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">Complete Hardware Kit Cost — RM 69.70 (RM 13.94 / student)</text>
+          <line x1="16" y1="134" x2="402" y2="134" stroke="#DADCE0" />
+          <text x="16" y="148" fontSize="7.8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">Complete 11-Item Kit Cost — RM 76.70 (RM 15.34 / student)</text>
           {[
-            { name: '3× I2C LCDs', cost: 'RM 22.50', w: 118, x: 16, c: '#1A73E8' },
-            { name: 'Uno R3', cost: 'RM 18.00', w: 94, x: 138, c: '#137333' },
-            { name: '4× Sonar', cost: 'RM 12.00', w: 68, x: 236, c: '#B06000' },
-            { name: 'Board+Parts', cost: 'RM 17.20', w: 94, x: 308, c: '#5F6368' },
+            { name: '3× I2C LCDs', cost: 'RM 22.50', w: 94, x: 16, c: '#1A73E8' },
+            { name: 'Uno R3', cost: 'RM 18.00', w: 84, x: 114, c: '#137333' },
+            { name: '4× Sonar', cost: 'RM 12.00', w: 76, x: 202, c: '#B06000' },
+            { name: '3BZ+0x24+NPN', cost: 'RM 8.50', w: 120, x: 282, c: '#C5221F' },
           ].map((b) => (
             <g key={b.name}>
-              <rect x={b.x} y="148" width={b.w} height="52" fill="#F8FAFD" stroke={b.c} />
-              <rect x={b.x} y="148" width={b.w} height="6" fill={b.c} />
-              <text x={b.x + b.w / 2} y="172" textAnchor="middle" fontSize="8.5" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{b.name}</text>
-              <text x={b.x + b.w / 2} y="189" textAnchor="middle" fontSize="9" fill={b.c} fontFamily="JetBrains Mono, monospace">{b.cost}</text>
+              <rect x={b.x} y="156" width={b.w} height="48" fill="#F8FAFD" stroke={b.c} />
+              <rect x={b.x} y="156" width={b.w} height="5" fill={b.c} />
+              <text x={b.x + b.w / 2} y="177" textAnchor="middle" fontSize="8" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{b.name}</text>
+              <text x={b.x + b.w / 2} y="193" textAnchor="middle" fontSize="8.6" fill={b.c} fontFamily="JetBrains Mono, monospace">{b.cost}</text>
             </g>
           ))}
         </svg>
@@ -394,16 +402,16 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
             FIG. 7 — MITIGATIONS BUILT TODAY &amp; SCALING ROADMAP
           </text>
           {[
-            { x: 16, title: 'Hardware Mitigation', now: 'Felt dividers + 40 ms turns', next: 'Upgrade: DHT22 temp sensor', c: '#C5221F' },
-            { x: 224, title: 'Software Mitigation', now: '15 ms pulseIn() safety cap', next: 'Upgrade: Zero-block PCINT', c: '#B06000' },
+            { x: 16, title: 'Hardware Mitigation', now: '2N2222 buffer + 1.18 kΩ short bus', next: 'Upgrade: DHT22 + ToF LiDAR', c: '#C5221F' },
+            { x: 224, title: 'Software Mitigation', now: '2000 Hz shared mixed carrier', next: 'Upgrade: Dedicated PWM IC', c: '#B06000' },
             { x: 432, title: 'Algorithm Mitigation', now: '3-sample median + ±1 cm band', next: 'Upgrade: ESP32 cloud sync', c: '#1A73E8' },
           ].map((col) => (
             <g key={col.title}>
               <rect x={col.x} y="30" width="192" height="64" fill="#FFFFFF" stroke="#DADCE0" />
               <rect x={col.x} y="30" width="192" height="3" fill={col.c} />
               <text x={col.x + 10} y="48" fontSize="8.5" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{col.title}</text>
-              <text x={col.x + 10} y="65" fontSize="8" fill="#137333" fontFamily="Inter, sans-serif">Now: {col.now}</text>
-              <text x={col.x + 10} y="82" fontSize="8" fill="#5F6368" fontFamily="Inter, sans-serif">{col.next}</text>
+              <text x={col.x + 10} y="65" fontSize="7.8" fill="#137333" fontFamily="Inter, sans-serif">Now: {col.now}</text>
+              <text x={col.x + 10} y="82" fontSize="7.8" fill="#5F6368" fontFamily="Inter, sans-serif">{col.next}</text>
             </g>
           ))}
         </svg>
@@ -419,18 +427,18 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
           </text>
           <line x1="48" y1="62" x2="592" y2="62" stroke="#AECBFA" strokeWidth="2" />
           {[
-            { x: 76, t: '0:00–1:00', l: 'Traffic LEDs', s: '15 / 8 / 4 cm' },
+            { x: 76, t: '0:00–1:00', l: 'LEDs + Danger BZ', s: '2500Hz Bay 1 Only' },
             { x: 208, t: '1:00–2:00', l: '5 s Stop Reset', s: 'Nudge vs Still' },
             { x: 340, t: '2:00–3:00', l: '3-Bay Billing', s: '15m Free → RM 3' },
-            { x: 472, t: '3:00–4:00', l: 'Overstay Alarm', s: '>180m Pin A3' },
+            { x: 472, t: '3:00–4:00', l: 'Mixed 0x24 Buzzers', s: 'B1 Dang + B3 Over' },
             { x: 582, t: '4:00–5:00', l: 'Receipt & Q&A', s: 'Serial Exit Log' },
           ].map((step, i) => (
             <g key={step.t}>
               <circle cx={step.x} cy="62" r="11" fill="#1A73E8" />
               <text x={step.x} y="65.5" textAnchor="middle" fontSize="8.5" fill="#FFFFFF" fontFamily="JetBrains Mono, monospace">{i + 1}</text>
               <text x={step.x} y="42" textAnchor="middle" fontSize="7.8" fill="#1A73E8" fontFamily="JetBrains Mono, monospace">{step.t}</text>
-              <text x={step.x} y="88" textAnchor="middle" fontSize="8.5" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{step.l}</text>
-              <text x={step.x} y="101" textAnchor="middle" fontSize="7.5" fill="#5F6368" fontFamily="Inter, sans-serif">{step.s}</text>
+              <text x={step.x} y="88" textAnchor="middle" fontSize="8.3" fill="#202124" fontFamily="Inter, sans-serif" fontWeight="500">{step.l}</text>
+              <text x={step.x} y="101" textAnchor="middle" fontSize="7.3" fill="#5F6368" fontFamily="Inter, sans-serif">{step.s}</text>
             </g>
           ))}
         </svg>

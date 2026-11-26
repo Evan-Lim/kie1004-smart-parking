@@ -192,7 +192,7 @@ export const BomAndAssembly: React.FC = () => {
                 className="mt-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-[11px] border border-[#DADCE0] bg-[#F8F9FA] text-[#202124] hover:bg-[#E8F0FE] disabled:opacity-45 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                Reset Default Kit (RM 69.70)
+                Reset Default Kit (RM 76.70)
               </button>
             </div>
           </div>
@@ -317,7 +317,7 @@ export const BomAndAssembly: React.FC = () => {
 
           <div className="bg-white border border-[#DADCE0] p-3.5 sm:p-4 space-y-2.5">
             <h3 className="text-xs font-medium text-[#202124]">
-              Revision Delta Summary (Original Schematic v2.0 → Updated Spec v3.0)
+              Revision Delta Summary (Original Schematic v2.0 → Updated Spec v3.1)
             </h3>
             <div className="overflow-x-auto">
               <table className="booktabs-table text-left text-xs">
@@ -325,7 +325,7 @@ export const BomAndAssembly: React.FC = () => {
                   <tr className="text-[#202124]">
                     <th className="py-2 pr-4 font-medium">Dimension</th>
                     <th className="py-2 pr-4 font-medium">Original (v2.0)</th>
-                    <th className="py-2 pr-4 font-medium">Updated (v3.0)</th>
+                    <th className="py-2 pr-4 font-medium">Updated (v3.1)</th>
                     <th className="py-2 font-medium">System Impact</th>
                   </tr>
                 </thead>
@@ -350,7 +350,7 @@ export const BomAndAssembly: React.FC = () => {
         <div className="flex-1 min-h-0 overflow-y-auto dash-scroll bg-white border border-[#DADCE0] p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-medium text-[#202124]">
-              Interactive 10-Point QA Verification Suite (v3.0 Hardware &amp; Firmware)
+              Interactive 10-Point QA Verification Suite (v3.1 Hardware &amp; Firmware)
             </h3>
             <span className="font-mono text-xs text-[#1A73E8] font-medium">
               Verified: {qaPassCount} / {QA_TEST_SUITE.length} Passed
@@ -416,7 +416,7 @@ export const BomAndAssembly: React.FC = () => {
                 <thead>
                   <tr className="text-[#202124]">
                     <th className="py-2 pr-3 font-medium">Criterion</th>
-                    <th className="py-2 pr-3 font-medium">Project Coverage (v3.0)</th>
+                    <th className="py-2 pr-3 font-medium">Project Coverage (v3.1)</th>
                     <th className="py-2 text-right font-medium">Slides</th>
                   </tr>
                 </thead>
@@ -509,7 +509,7 @@ export const BomAndAssembly: React.FC = () => {
                   {isOpen && (
                     <div className="px-4 pb-3 pt-1 border-t border-[#E8EAED] bg-[#F8F9FA]">
                       <div className="text-[10px] font-mono text-[#1A73E8] mb-1">
-                        {faq.category}{faq.isNewV3 ? ' · Updated v3.0' : ''}
+                        {faq.category}{faq.isNewV3 ? ' · Updated v3.1' : ''}
                       </div>
                       <p className="text-xs font-light text-[#3C4043] leading-relaxed">
                         {faq.answer}
