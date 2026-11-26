@@ -31,7 +31,7 @@ function drawPdfDiagram(doc: jsPDF, slide: PresentationSlide, x: number, y: numb
     const bw = (w - 16) / 3;
     [
       { t: 'BAY 1 (0x27)', s: 'OPEN · Green', c: [19, 115, 51] as [number, number, number] },
-      { t: 'BAY 2 (0x26)', s: '00:45 · RM 3', c: [176, 96, 0] as [number, number, number] },
+      { t: 'BAY 2 (0x26)', s: '00:45 · RM 1', c: [176, 96, 0] as [number, number, number] },
       { t: 'BAY 3 (0x25)', s: 'OVERSTAY!', c: [197, 34, 31] as [number, number, number] },
     ].forEach((b, i) => {
       const bx = x + 4 + i * (bw + 4);

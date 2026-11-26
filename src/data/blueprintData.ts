@@ -88,8 +88,14 @@ export const REVISION_DELTA_SUMMARY = [
   {
     dimension: 'Buzzer Activation Rule',
     v2Original: 'Single buzzer overstay-only',
-    v3Updated: 'Per-Bay Danger (2–5 cm, 150 ms) + Overstay (>180 m, 500 ms)',
+    v3Updated: 'Per-Bay Danger (2–5 cm, 150 ms) + Overstay (≥240 m / 4h, 500 ms)',
     impact: '2500 Hz Danger-only, 1800 Hz Overstay-only, or shared 2000 Hz carrier when simultaneous with independent bay gating.',
+  },
+  {
+    dimension: 'Tariff & Overstay Limit',
+    v2Original: 'RM 3.00 / started hr · > 180 min (3h) limit',
+    v3Updated: '15 m free grace, RM 1.00 / started 30 min · ≥ 240 min (4h) overstay',
+    impact: 'Exact 30-min integer ceiling (billableMin + 29) / 30; alarm fires at 04:00 (RM 8) and keeps billing RM 1/30 min.',
   },
   {
     dimension: 'Count-Up Start Trigger',
@@ -208,7 +214,7 @@ export const PIN_ALLOCATION_TABLE: PinMapping[] = [
     group: 'leds',
     bay: 1,
     currentNote: '9.09 mA ((5.0V - 2.0V) / 330 Ω)',
-    datasheetNote: 'ON solid for CAUTION (6–10 cm); alternates with Red LED during OVERSTAY (>180 sim min).',
+    datasheetNote: 'ON solid for CAUTION (6–10 cm); alternates with Red LED during OVERSTAY (≥240 sim min / 4 hours).',
   },
   {
     id: 'led_r1',
@@ -532,10 +538,10 @@ export const ENGINEERING_ASSUMPTIONS: EngineeringAssumption[] = [
   },
   {
     parameter: 'Time Compression & Tariff',
-    oldValue: '60× (1s = 1 sim min), 15m free, RM 3/hr ceiling, 180m limit',
-    newValue: '60× (1s = 1 sim min), 15m free, RM 3/hr ceiling, 180m limit',
-    justification: 'Subtract 15 min free grace FIRST, then apply ceiling (billableMins + 59) / 60. Runtime toggleable 60× ↔ 1× via Serial command T.',
-    changed: false,
+    oldValue: '60× (1s = 1 sim min), 15m free, RM 3/hr ceiling, >180m limit',
+    newValue: '60× (1s = 1 sim min), 15m free, RM 1/30 min ceiling, ≥240m (4h) limit',
+    justification: 'Subtract 15 min free grace FIRST, then apply 30-min ceiling (billableMins + 29) / 30 × RM 1. Overstay triggers at ≥ 240 min (RM 8) and continues RM 1/30 min. Runtime toggleable 60× ↔ 1× via Serial T.',
+    changed: true,
   },
 ];
 
@@ -639,9 +645,9 @@ export const QA_TEST_SUITE: QaTestItem[] = [
   {
     id: 'T06',
     tester: 'Member 3',
-    title: 'Grace Period, Ceiling Fee & Simultaneous Mixed Buzzers',
-    expectedResult: 'At 60×: 15 s = RM 0; 16 s = RM 3; >180 s on Bay 3 sounds Bay 3 slow pulse (1800 Hz, P2); putting Bay 1 at 4 cm simultaneously switches A3 carrier to 2000 Hz while Bay 1 beeps fast (P0) and Bay 3 pulses slow (P2).',
-    notes: 'Proves zero cross-bay interference under simultaneous Danger + Overstay.',
+    title: 'Grace Period, RM 1/30 min Fee & Simultaneous Mixed Buzzers',
+    expectedResult: 'At 60×: 15 s = RM 0; 16 s = RM 1; 45 s = RM 1; 46 s = RM 2; ≥240 s (4h, RM 8) on Bay 3 sounds Bay 3 slow pulse (1800 Hz, P2); putting Bay 1 at 4 cm simultaneously switches A3 carrier to 2000 Hz while Bay 1 beeps fast (P0) and Bay 3 pulses slow (P2).',
+    notes: 'Proves zero cross-bay interference under simultaneous Danger + 4-hour Overstay.',
   },
   {
     id: 'T07',
@@ -719,7 +725,7 @@ export const DEFENSE_FAQ: DefenseFaqItem[] = [
     id: 'q5',
     category: 'Scheduler & Firmware',
     isNewV3: true,
-    question: 'What happens if Bay 1 is in Danger (2–5 cm) and Bay 3 is Overstay (>180 min) at the exact same time on one Timer 2?',
+    question: 'What happens if Bay 1 is in Danger (2–5 cm) and Bay 3 is Overstay (≥ 240 min / 4h) at the exact same time on one Timer 2?',
     answer: 'Arduino Uno’s tone() library uses hardware Timer 2, so Pin A3 outputs one carrier frequency at any instant. When only Danger bay(s) alert, A3 drives 2500 Hz; when only Overstay bay(s) alert, A3 drives 1800 Hz. When both occur simultaneously on different bays, our arbitrator smoothly switches A3 to a shared 2000 Hz carrier while PCF8574 (0x24) continues gating Bay 1 at rapid 150 ms staccato (P0) and Bay 3 at slow 500 ms / 1000 ms pulses (P2)—so both bays sound independently at once!',
   },
   {
@@ -758,8 +764,8 @@ export const DEFENSE_FAQ: DefenseFaqItem[] = [
   {
     id: 'q11',
     category: 'Power & Tariff',
-    question: 'Explain (billableMin + 59) / 60 and why the 15-minute grace period is subtracted first.',
-    answer: 'C++ integer division truncates toward zero, whereas parking tariffs charge per started hour (ceiling division ⌈a/b⌉ = ⌊(a+b−1)/b⌋). Subtracting the 15 free minutes first ensures exact billing boundaries: 15 m → RM 0; 16 m → 1 billable m → RM 3; 75 m → 60 m → RM 3; 76 m → 61 m → RM 6.',
+    question: 'Explain (billableMin + 29) / 30 and why the 15-minute grace period is subtracted first.',
+    answer: 'C++ integer division truncates toward zero, whereas our tariff charges RM 1.00 per started 30-minute block (ceiling division ⌈a/b⌉ = ⌊(a+b−1)/b⌋). Subtracting the 15 free minutes first ensures exact boundaries: 15 m → RM 0; 16 m → 1 billable m → RM 1; 45 m → 30 m → RM 1; 46 m → 31 m → RM 2; 239 m → RM 8 (within limit); 240 m (4h) → RM 8 + Overstay alarm ON; 256 m → RM 9.',
   },
   {
     id: 'q12',

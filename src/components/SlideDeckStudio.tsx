@@ -44,7 +44,7 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
           </text>
           {[
             { bay: 'BAY 1', addr: '0x27', x: 20, status: 'OPEN', led: '#188038' },
-            { bay: 'BAY 2', addr: '0x26', x: 152, status: '00:45 · RM 3', led: '#F9AB00' },
+            { bay: 'BAY 2', addr: '0x26', x: 152, status: '00:45 · RM 1', led: '#F9AB00' },
             { bay: 'BAY 3', addr: '0x25', x: 284, status: 'OVERSTAY!', led: '#D93025' },
           ].map((slot) => (
             <g key={slot.bay}>
@@ -111,12 +111,12 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
 
           <rect x="410" y="34" width="214" height="32" fill="#E8F0FE" stroke="#1A73E8" />
           <text x="517" y="48" textAnchor="middle" fontSize="8.8" fill="#174EA6" fontFamily="Inter, sans-serif" fontWeight="500">STILL 5.0 s → COUNT UP 00:00</text>
-          <text x="517" y="60" textAnchor="middle" fontSize="7.8" fill="#3C4043" fontFamily="Inter, sans-serif">15m Free → RM 3/hr → &gt;180m 1800Hz</text>
+          <text x="517" y="60" textAnchor="middle" fontSize="7.8" fill="#3C4043" fontFamily="Inter, sans-serif">15m Free → RM 1/30m → ≥240m 1800Hz</text>
 
           {/* Bottom note */}
           <line x1="16" y1="84" x2="624" y2="84" stroke="#DADCE0" />
           <text x="16" y="101" fontSize="8.3" fill="#5F6368" fontFamily="Inter, sans-serif">
-            Each bay’s dedicated passive buzzer sounds 2500 Hz rapid in Danger (&lt;5 cm), 1800 Hz slow on Overstay (&gt;180 m), or 2000 Hz if mixed.
+            Each bay’s dedicated passive buzzer sounds 2500 Hz rapid in Danger (&lt;5 cm), 1800 Hz slow on Overstay (≥4h), or 2000 Hz if mixed.
           </text>
         </svg>
       );
@@ -429,7 +429,7 @@ const SlideLatexDiagram: React.FC<{ type: SlideDiagramType }> = ({ type }) => {
           {[
             { x: 76, t: '0:00–1:00', l: 'LEDs + Danger BZ', s: '2500Hz Bay 1 Only' },
             { x: 208, t: '1:00–2:00', l: '5 s Stop Reset', s: 'Nudge vs Still' },
-            { x: 340, t: '2:00–3:00', l: '3-Bay Billing', s: '15m Free → RM 3' },
+            { x: 340, t: '2:00–3:00', l: '3-Bay Billing', s: '15m Free → RM 1/30m' },
             { x: 472, t: '3:00–4:00', l: 'Mixed 0x24 Buzzers', s: 'B1 Dang + B3 Over' },
             { x: 582, t: '4:00–5:00', l: 'Receipt & Q&A', s: 'Serial Exit Log' },
           ].map((step, i) => (

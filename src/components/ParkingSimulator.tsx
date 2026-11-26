@@ -59,7 +59,7 @@ export const ParkingSimulator: React.FC = () => {
     {
       id: 'boot-2',
       timeLabel: '00:00',
-      text: 'Ready. Danger (2–5 cm) fires 2500 Hz rapid; Overstay (>180m) fires 1800 Hz pulse; Mixed = 2000 Hz.',
+      text: 'Ready. Danger (2–5 cm) fires 2500 Hz rapid; Overstay (≥240m / 4h) fires 1800 Hz pulse; Mixed = 2000 Hz.',
       kind: 'info',
     },
   ]);
@@ -785,19 +785,19 @@ export const ParkingSimulator: React.FC = () => {
                     <>
                       <button
                         type="button"
-                        onClick={() => fastForwardBay(idx, 60)}
+                        onClick={() => fastForwardBay(idx, 30)}
                         className="inline-flex items-center gap-1 px-2 py-1 text-[10.5px] bg-[#F4F6F9] border border-[#DADCE0] text-[#202124] hover:bg-[#E8F0FE] cursor-pointer"
                       >
                         <FastForward className="w-3 h-3" />
-                        +60m
+                        +30m
                       </button>
                       <button
                         type="button"
-                        onClick={() => fastForwardBay(idx, 185)}
+                        onClick={() => fastForwardBay(idx, 240)}
                         className="inline-flex items-center gap-1 px-2 py-1 text-[10.5px] bg-[#FCE8E6] border border-[#FAD2CF] text-[#C5221F] hover:bg-[#FAD2CF] cursor-pointer"
                       >
                         <AlertTriangle className="w-3 h-3" />
-                        Overstay
+                        Overstay (4h)
                       </button>
                     </>
                   )}
@@ -902,7 +902,7 @@ export const ParkingSimulator: React.FC = () => {
                   RECEIPT — BAY {receipts[0].bayNumber} · {receipts[0].totalMins}m
                 </div>
                 <div className="text-[#1A73E8]">
-                  Payable: RM {receipts[0].finalFeeRM.toFixed(2)} (15m free grace)
+                  Payable: RM {receipts[0].finalFeeRM.toFixed(2)} (15m free · RM 1/30m)
                 </div>
               </div>
             )}

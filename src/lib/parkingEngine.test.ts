@@ -39,15 +39,18 @@ test('applyEmaFilter computes 70/30 integer EMA and bypasses >100 cm transitions
   assert.equal(applyEmaFilter(20, 10), 17);
 });
 
-test('calculateParkingFee applies 15-min free grace first, then hourly ceiling', () => {
+test('calculateParkingFee applies 15-min free grace first, then RM 1 per started 30-min block', () => {
   assert.equal(calculateParkingFee(0), 0);
   assert.equal(calculateParkingFee(15), 0);
-  assert.equal(calculateParkingFee(16), 3);
-  assert.equal(calculateParkingFee(75), 3);
-  assert.equal(calculateParkingFee(76), 6);
-  assert.equal(calculateParkingFee(180), 9);
-  assert.equal(calculateParkingFee(181), 9);
-  assert.equal(calculateParkingFee(196), 12);
+  assert.equal(calculateParkingFee(16), 1);
+  assert.equal(calculateParkingFee(45), 1);
+  assert.equal(calculateParkingFee(46), 2);
+  assert.equal(calculateParkingFee(75), 2);
+  assert.equal(calculateParkingFee(76), 3);
+  assert.equal(calculateParkingFee(239), 8);
+  assert.equal(calculateParkingFee(240), 8);
+  assert.equal(calculateParkingFee(255), 8);
+  assert.equal(calculateParkingFee(256), 9);
 });
 
 test('5-second stationary hold resets on motion (>1 cm) and starts count-up at 00:00 after 5s steady', () => {
@@ -86,8 +89,21 @@ test('5-second stationary hold resets on motion (>1 cm) and starts count-up at 0
   res = stepParkingBay(bay, bay.anchorDistCm, 9500 + 16000, 60);
   bay = res.bay;
   assert.equal(bay.elapsedSimMins, 16);
-  assert.equal(bay.accruedFeeRM, 3);
+  assert.equal(bay.accruedFeeRM, 1);
   assert.equal(bay.isOverstaying, false);
+
+  // Boundary check: 239 sim min is still within 4-hour limit; 240 sim min triggers inclusive >= 240 overstay
+  res = stepParkingBay(bay, bay.anchorDistCm, 9500 + 239000, 60);
+  bay = res.bay;
+  assert.equal(bay.elapsedSimMins, 239);
+  assert.equal(bay.accruedFeeRM, 8);
+  assert.equal(bay.isOverstaying, false);
+
+  res = stepParkingBay(bay, bay.anchorDistCm, 9500 + 240000, 60);
+  bay = res.bay;
+  assert.equal(bay.elapsedSimMins, 240);
+  assert.equal(bay.accruedFeeRM, 8);
+  assert.equal(bay.isOverstaying, true);
 });
 
 test('3x independent passive buzzers enforce Danger (2500 Hz), Overstay (1800 Hz), Mixed (2000 Hz) & active-LOW 0x24 masks', () => {
@@ -118,8 +134,8 @@ test('3x independent passive buzzers enforce Danger (2500 Hz), Overstay (1800 Hz
   assert.equal(dangerOff.byteMask, 255);
   assert.equal(dangerOff.anySoundingNow, false);
 
-  // Bay 2 Overstay only -> 1800 Hz, 500 ms ON / 1000 ms OFF, P1 LOW -> 0xFD (253) at t=200, 0xFF at t=600
-  const b2Over = { ...b2Caution, elapsedSimMins: 185, isOverstaying: true };
+  // Bay 2 Overstay (>= 240 min / 4h) only -> 1800 Hz, 500 ms ON / 1000 ms OFF, P1 LOW -> 0xFD (253) at t=200, 0xFF at t=600
+  const b2Over = { ...b2Caution, elapsedSimMins: 240, isOverstaying: true };
   const overOn = computeBuzzerBus([b1Safe, b2Over, b3Empty], 200);
   assert.equal(overOn.carrierFreqHz, 1800);
   assert.equal(overOn.byteMask, 253);
@@ -130,7 +146,7 @@ test('3x independent passive buzzers enforce Danger (2500 Hz), Overstay (1800 Hz
   assert.equal(overOff.byteMask, 255);
 
   // Simultaneous Mixed: Bay 1 Danger + Bay 3 Overstay -> 2000 Hz shared carrier, P0 & P2 LOW -> 255 - 1 - 4 = 250 (0xFA) at t=0
-  const b3Over = { ...createInitialBay(2), zone: 'SAFE' as const, state: 'OCCUPIED' as const, elapsedSimMins: 190, isOverstaying: true };
+  const b3Over = { ...createInitialBay(2), zone: 'SAFE' as const, state: 'OCCUPIED' as const, elapsedSimMins: 256, isOverstaying: true };
   const mixedBothOn = computeBuzzerBus([b1Danger, b2Caution, b3Over], 0);
   assert.equal(mixedBothOn.carrierFreqHz, 2000);
   assert.equal(mixedBothOn.byteMask, 250);
@@ -170,7 +186,7 @@ test('Exit debounce ignores brief echo drops and issues receipt after 3.0 s empt
     entryTimestampMs: 0,
     elapsedRealSec: 76,
     elapsedSimMins: 76,
-    accruedFeeRM: 6,
+    accruedFeeRM: 3,
   };
 
   let res = stepParkingBay(bay, 120, 76000, 60);
@@ -188,7 +204,7 @@ test('Exit debounce ignores brief echo drops and issues receipt after 3.0 s empt
   assert.equal(res.bay.state, 'AVAILABLE');
   assert.ok(res.receipt);
   assert.equal(res.receipt?.totalMins, 81);
-  assert.equal(res.receipt?.finalFeeRM, 6);
+  assert.equal(res.receipt?.finalFeeRM, 3);
 });
 
 test('EEPROM serialization and power-cycle restoration preserves active occupied bay & elapsed seconds', () => {
@@ -199,14 +215,26 @@ test('EEPROM serialization and power-cycle restoration preserves active occupied
     elapsedSimMins: 45,
     isOverstaying: false,
   };
-  const rec = serializeEeprom([b0, createInitialBay(1), createInitialBay(2)]);
+  const b2 = {
+    ...createInitialBay(2),
+    state: 'OCCUPIED' as const,
+    elapsedRealSec: 240,
+    elapsedSimMins: 240,
+    isOverstaying: true,
+  };
+  const rec = serializeEeprom([b0, createInitialBay(1), b2]);
   assert.equal(rec.magic, '0x4B494533');
   const restored = restoreFromEeprom(rec, 1000, 60);
   assert.equal(restored[0].state, 'OCCUPIED');
   assert.equal(restored[0].priorElapsedRealSec, 45);
   assert.equal(restored[0].elapsedSimMins, 45);
-  assert.equal(restored[0].accruedFeeRM, 3);
+  assert.equal(restored[0].accruedFeeRM, 1);
+  assert.equal(restored[0].isOverstaying, false);
   assert.equal(restored[1].state, 'AVAILABLE');
+  assert.equal(restored[2].state, 'OCCUPIED');
+  assert.equal(restored[2].elapsedSimMins, 240);
+  assert.equal(restored[2].accruedFeeRM, 8);
+  assert.equal(restored[2].isOverstaying, true);
 });
 
 test('formatBayLcdLines always returns two exact 16-character strings including overstay fee', () => {
@@ -219,14 +247,14 @@ test('formatBayLcdLines always returns two exact 16-character strings including 
     ...bay,
     state: 'OCCUPIED' as const,
     filteredDistCm: 11,
-    elapsedSimMins: 186,
-    accruedFeeRM: 9,
+    elapsedSimMins: 240,
+    accruedFeeRM: 8,
     isOverstaying: true,
   };
   const [o0, o1] = formatBayLcdLines(overBay, 60);
   assert.equal(o0.length, 16);
   assert.equal(o1.length, 16);
-  assert.ok(o0.includes('RM9'), `Expected RM9 in "${o0}"`);
+  assert.ok(o0.includes('RM8'), `Expected RM8 in "${o0}"`);
 });
 
 test('calculateElectricalBudget accurately computes 3-LCD, 9-LED, 2N2222, PCF8574 (0x24) & 3-passive-buzzer budgets', () => {
@@ -280,6 +308,9 @@ test('ARDUINO_FIRMWARE_V3 strictly enforces KIE1004 W01-W13 syntax & includes 3-
     'const int LED_PINS[NUM_BAYS][LEDS_PER_BAY]',
     'const int PCF8574_BUZZER_ADDR = 0x24;',
     'const int BUZZER_BIT_WEIGHT[NUM_BAYS] = { 1, 2, 4 };',
+    'const int BILLING_BLOCK_MIN  = 30;',
+    'const int RATE_RM_PER_30MIN  = 1;',
+    'const int OVERSTAY_MIN       = 240;',
     'void writeBuzzerBus(int activeLowMask)',
     'void updateThreeBayBuzzers(',
     'void insertionSort(int items[], int n)',

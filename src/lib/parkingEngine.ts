@@ -18,8 +18,9 @@ export const ENGINEERING_CONSTANTS = {
   LCD_STAGGER_INTERVAL_MS: 200, // 1 LCD updated every 200 ms -> 600 ms cycle
   PULSE_TIMEOUT_US: 15000, // ~257 cm max echo wait
   FREE_PARKING_MINS: 15,
-  MAX_PARKING_LIMIT_MINS: 180, // 3 hours overstay threshold
-  HOURLY_RATE_RM: 3.0,
+  BILLING_BLOCK_MINS: 30, // RM 1.00 per started 30-min block
+  MAX_PARKING_LIMIT_MINS: 240, // >= 4 hours (240 sim min) overstay threshold
+  RATE_PER_30MIN_RM: 1.0,
   SPEED_OF_SOUND_M_S: 343,
   VCC_VOLTS: 5.0,
   LED_VF_RED_YELLOW: 2.0,
@@ -183,19 +184,22 @@ export function applyEmaFilter(prevFilteredCm: number, rawDistCm: number): numbe
 }
 
 /**
- * Grace-First Ceiling Tariff Calculation:
+ * Grace-First 30-Minute Ceiling Tariff Calculation:
  * Step 1: If duration <= 15 sim min -> RM 0.00
  * Step 2: billableMins = duration - 15
- * Step 3: billableHours = floor((billableMins + 59) / 60)
- * Step 4: fee = billableHours * RM 3.00
+ * Step 3: billableBlocks = floor((billableMins + 29) / 30)
+ * Step 4: fee = billableBlocks * RM 1.00
  */
 export function calculateParkingFee(durationMins: number): number {
   if (durationMins <= ENGINEERING_CONSTANTS.FREE_PARKING_MINS) {
     return 0;
   }
   const billableMins = durationMins - ENGINEERING_CONSTANTS.FREE_PARKING_MINS;
-  const billableHours = Math.floor((billableMins + 59) / 60);
-  return billableHours * ENGINEERING_CONSTANTS.HOURLY_RATE_RM;
+  const billableBlocks = Math.floor(
+    (billableMins + ENGINEERING_CONSTANTS.BILLING_BLOCK_MINS - 1) /
+      ENGINEERING_CONSTANTS.BILLING_BLOCK_MINS
+  );
+  return billableBlocks * ENGINEERING_CONSTANTS.RATE_PER_30MIN_RM;
 }
 
 export function createInitialBay(id: number): ParkingBayState {
@@ -266,9 +270,9 @@ export function stepParkingBay(
     next.accruedFeeRM = calculateParkingFee(next.elapsedSimMins);
     const wasOverstay = next.isOverstaying;
     next.isOverstaying =
-      next.elapsedSimMins > ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
+      next.elapsedSimMins >= ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
     if (!wasOverstay && next.isOverstaying) {
-      eventLog = `[ALARM] Bay ${next.id + 1} exceeded ${ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS} sim min limit! Bay ${next.id + 1} passive buzzer (0x24 P${next.id}) ON.`;
+      eventLog = `[ALARM] Bay ${next.id + 1} reached ${ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS} sim min (4h) overstay limit! Bay ${next.id + 1} passive buzzer (0x24 P${next.id}) ON.`;
       eepromDirty = true;
     }
   }
@@ -393,7 +397,7 @@ export function computeBayLeds(bay: ParkingBayState, nowMs: number): LedOutputs 
 /**
  * Evaluates a single bay's dedicated 5V Passive Piezo Buzzer gated by PCF8574 (0x24):
  * - Priority 1 (DANGER zone 2-5 cm): Rapid 150 ms ON / 150 ms OFF staccato warning synced with Red LED.
- * - Priority 2 (OVERSTAY > 180 sim min): Steady 500 ms ON / 1000 ms OFF pulse synced with R/Y strobe.
+ * - Priority 2 (OVERSTAY >= 240 sim min / 4h): Steady 500 ms ON / 1000 ms OFF pulse synced with R/Y strobe.
  * - Otherwise: SILENT (PCF8574 pin stays HIGH / open).
  */
 export function computeBayBuzzer(
@@ -486,7 +490,7 @@ export function computeBuzzerBus(
     carrierModeLabel = `Danger Carrier 2500 Hz (Bay ${dangerBayNumbers.join(', ')} < 5 cm)`;
   } else if (anyOverstay) {
     carrierFreqHz = ENGINEERING_CONSTANTS.BUZZER_FREQ_OVERSTAY_HZ;
-    carrierModeLabel = `Overstay Carrier 1800 Hz (Bay ${overstayBayNumbers.join(', ')} > 180 min)`;
+    carrierModeLabel = `Overstay Carrier 1800 Hz (Bay ${overstayBayNumbers.join(', ')} ≥ 240 min)`;
   }
 
   const byteHex = `0x${byteMask.toString(16).toUpperCase().padStart(2, '0')}`;
@@ -617,7 +621,7 @@ export function restoreFromEeprom(
         elapsedSimMins: simMins,
         accruedFeeRM: calculateParkingFee(simMins),
         isOverstaying:
-          simMins > ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS ||
+          simMins >= ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS ||
           snap.isOverstaying,
       };
     }

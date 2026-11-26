@@ -20,29 +20,32 @@ Built around a single **Arduino Uno R3 (ATmega328P)** utilizing **20 / 20 native
 - **1 : 20 Scale Distance Zones**: `DANGER` (`2–5 cm`, Red flash + Bay Passive Buzzer rapid `150 ms` beep), `CAUTION` (`6–10 cm`, Yellow solid), `SAFE` (`11–20 cm`, Green solid), `EMPTY` (`> 20 cm`, Green solid).
 - **Per-Bay Passive Buzzer Policy**:
   - **Danger (`2–5 cm`, priority 1)**: Rapid `150 ms ON / 150 ms OFF` staccato beep (`2500 Hz` when Danger-only).
-  - **Overstay (`> 180 sim min`, priority 2)**: Steady `500 ms ON / 1000 ms OFF` slow pulse (`1800 Hz` when Overstay-only).
+  - **Overstay (`≥ 240 sim min` / `≥ 4 hours`, priority 2)**: Steady `500 ms ON / 1000 ms OFF` slow pulse (`1800 Hz` when Overstay-only).
   - **Simultaneous Mixed Alerts**: Shared **`2000 Hz`** carrier on Pin `A3` while PCF8574 (`0x24`) gates each bay's rapid vs. slow rhythm independently via beginner-friendly subtraction (`mask = 255 - 1/-2/-4`).
 - **5.0-Second Stationary Stop Rule**: A vehicle must remain inside the bay (`≤ 20 cm`) and motionless within `±1 cm` for **5.0 continuous seconds** before count-up starts cleanly at `00:00`. Moving `> 1 cm` resets the 5-second countdown.
-- **Grace-First Hourly Tariff**: First `15` simulated minutes free, then `RM 3.00` per started hour via integer ceiling division `((billableMin + 59) / 60) * 3`. Default `60×` demo clock (`1 s = 1 sim min`), toggleable to `1×` real time.
+- **Grace-First 30-Minute Tariff**: First `15` simulated minutes free, then **`RM 1.00` per started 30-minute block** via integer ceiling division `((billableMin + 29) / 30) * 1`. Reaching `≥ 240 min` (4 hours) triggers the overstay alarm while continuing normal `RM 1 / 30 min` billing with no extra surcharge. Default `60×` demo clock (`1 s = 1 sim min`), toggleable to `1×` real time.
 - **Electrical & Cost Budget**: `100.3 mA` worst-case MCU pin load (`< 200 mA` ATmega328P limit), `45.0 mA` PCF8574 sink (`< 80 mA`), `49.3 mA` 2N2222 load (`< 600 mA`), `285.6 mA` peak USB 5 V rail load (`< 500 mA` polyfuse), default 11-item hardware kit **`RM 76.70`** (`RM 15.34` per student across 5 members).
 
 ---
 
 ## Dashboard Features (7 Interactive Views)
 
-1. **Live Simulator** — Real-time 3-bay bench with distance sliders, `±1 cm` jitter injection, 5-second stillness gate, per-bay passive buzzer status rows (`BZ1 P0`, `BZ2 P1`, `BZ3 P2`), live PCF8574 `0x24` hex/binary bus monitor, multi-pitch Web Audio synthesis (`2500 / 1800 / 2000 Hz`), power-cycle recovery, and interactive Serial Monitor.
+1. **Live Simulator** — Real-time 3-bay bench with distance sliders, `±1 cm` jitter injection, 5-second stillness gate, per-bay passive buzzer status rows (`BZ1 P0`, `BZ2 P1`, `BZ3 P2`), live PCF8574 `0x24` hex/binary bus monitor, multi-pitch Web Audio synthesis (`2500 / 1800 / 2000 Hz`), `RM 1 / 30 min` billing (`≥ 4 h` overstay), power-cycle recovery, and interactive Serial Monitor.
 2. **C++ Code Studio** — Complete procedural Arduino C++ firmware (`kie1004_smart_parking_v3.ino`) written strictly with KIE1004 fundamentals (variables/constants, selection, loops, 1D/2D arrays, subtraction-based active-LOW PCF8574 gating, function overloading, Insertion Sort median filtering, Linear Search, and pointer pass-by-reference) plus one-click `.ino` download.
 3. **Presentation Slides** — 10 uncluttered, layperson-friendly slides across 6 diversified layouts with custom SVG diagrams, complete external word-for-word **Speaker Scripts** (never printed on slides), and one-click 10-page vector **`.pdf`** export.
 4. **Master Plan** — 6-phase absolute-beginner build guide (`20` steps) plus an interactive **Exact Circuit Assembly (Wire-by-Wire)** checklist (`P1`–`B4`, including `2N2222` E-B-C and `PCF8574 0x24`) and **6-Point Pre-Power Smoke Test**.
-5. **Schematic & Pins** — Interactive 20-pin Arduino Uno R3 + `2N2222` + `PCF8574 (0x24)` architecture diagram, filterable pin allocation table, and 4-device I2C address guide (`0x27–0x24`).
-6. **Math & Proofs** — Interactive Ohm's Law (`330 Ω`), 0–3 simultaneous buzzers, 4-device I2C pull-up (`1.18 kΩ`), ATmega328P/PCF8574/2N2222/USB power calculators, 4-state stationary FSM diagram, and Grace-First tariff verifier.
+5. **Schematic & Pins** — Three dedicated sub-views:
+   - **Wiring Interconnections (CAD Schematic)**: Full-width pin-to-pin electrical diagram showing explicit orthogonal nets, junction solder dots, `9× 330 Ω` resistors, LED polarities, `2N2222` TO-92 E-B-C pinout + dual `1 kΩ` resistors, `100 µF` + `100 nF` decoupling capacitors, 4-device I2C trunk (`0x27–0x24`), and `P0/P1/P2` active-LOW buzzer returns, complete with interactive net isolation, `75%–150%` zoom, and one-click `.svg` vector export.
+   - **Overview & I2C Pads**: High-level architecture overview and 4-device I2C solder-pad configuration guide (`0x27–0x24`).
+   - **20-Pin Table 1**: Filterable 20-pin Uno + PCF8574 (`0x24`) allocation table with direct jump-to-net trace links.
+6. **Math & Proofs** — Interactive Ohm's Law (`330 Ω`), 0–3 simultaneous buzzers, 4-device I2C pull-up (`1.18 kΩ`), ATmega328P/PCF8574/2N2222/USB power calculators, 4-state stationary FSM diagram, and Grace-First `RM 1 / 30 min` + `≥ 4 h` overstay tariff verifier.
 7. **BOM, QA & Defense** — Editable 11-item BOM quantities (`RM 76.70` default) with instant live pricing & per-student split, interactive 10-point QA checklist, official KIE1004 rubric mapping, and 12-question Viva defense bank.
 
 ---
 
 ## Deploy to Netlify (Drag & Drop — Zero Config)
 
-This repository includes a pre-built, 100% self-contained static bundle inside **`netlify-static/`**. All simulation logic, `.ino` download, `.pdf` generation, Web Audio multi-pitch buzzer, and BOM calculations run entirely in the browser with **zero backend required**.
+This repository includes a pre-built, 100% self-contained static bundle inside **`netlify-static/`**. All simulation logic, `.ino` download, `.pdf` generation, `.svg` schematic export, Web Audio multi-pitch buzzer, and BOM calculations run entirely in the browser with **zero backend required**.
 
 ### Instant Drag-and-Drop Steps
 1. Open **[Netlify Drop](https://app.netlify.com/drop)** in your browser.
@@ -78,7 +81,7 @@ npm run dev
 # Run TypeScript type check
 npm run lint
 
-# Run unit tests (FSM, 3-bay passive buzzers, tariff math, power budget, BOM pricing, firmware rules, PDF binary)
+# Run unit tests (FSM, 3-bay passive buzzers, RM 1/30 min tariff, >= 4h overstay, power budget, BOM, firmware, PDF)
 npm test
 
 # Build standard Vite production bundle (dist/)
@@ -108,34 +111,35 @@ npm run build:netlify
 ## Repository Structure
 
 ```text
-├── README.md                       # Project documentation & deployment guide
-├── index.html                      # Entry HTML with Inter & JetBrains Mono fonts
-├── package.json                    # Scripts (dev, build, build:netlify, lint, test)
+├── README.md                           # Project documentation & deployment guide
+├── index.html                          # Entry HTML with Inter & JetBrains Mono fonts
+├── package.json                        # Scripts (dev, build, build:netlify, lint, test)
 ├── scripts/
-│   └── build-netlify-static.mjs    # Generates self-contained netlify-static/ bundle
-├── netlify-static/                 # Ready-to-drag-and-drop Netlify static site
+│   └── build-netlify-static.mjs        # Generates self-contained netlify-static/ bundle
+├── netlify-static/                     # Ready-to-drag-and-drop Netlify static site
 │   ├── index.html
 │   ├── _redirects
 │   ├── _headers
 │   └── assets/
 └── src/
-    ├── App.tsx                     # Material 3 dashboard shell & collapsible sidebar
+    ├── App.tsx                         # Material 3 dashboard shell & collapsible sidebar
     ├── components/
-    │   ├── ParkingSimulator.tsx    # Live 3-bay ultrasonic, LED, LCD & 3-buzzer bench
-    │   ├── CodeStudioTab.tsx       # Procedural C++ firmware viewer & .ino exporter
-    │   ├── SlideDeckStudio.tsx     # 10-slide deck, SVG diagrams & speaker scripts
-    │   ├── MasterPlanTab.tsx       # 6-phase guide + P1–B4 wire-by-wire checklist
-    │   ├── InteractiveSchematic.tsx# 20-pin Uno + 2N2222 + 0x24 diagram & pin table
-    │   ├── EngineeringCalculations.tsx # Power, PCF8574, 2N2222 & tariff calculators
-    │   └── BomAndAssembly.tsx      # Editable RM 76.70 BOM, 10-point QA & Viva FAQ
+    │   ├── ParkingSimulator.tsx        # Live 3-bay ultrasonic, LED, LCD & 3-buzzer bench
+    │   ├── CodeStudioTab.tsx           # Procedural C++ firmware viewer & .ino exporter
+    │   ├── SlideDeckStudio.tsx         # 10-slide deck, SVG diagrams & speaker scripts
+    │   ├── MasterPlanTab.tsx           # 6-phase guide + P1–B4 wire-by-wire checklist
+    │   ├── InteractiveSchematic.tsx    # Schematic host (Interconnections, Overview & Table 1)
+    │   ├── WiringInterconnectionDiagram.tsx # Full-width CAD pin-to-pin wiring SVG & exporter
+    │   ├── EngineeringCalculations.tsx # Power, PCF8574, 2N2222 & RM 1/30 min proofs
+    │   └── BomAndAssembly.tsx          # Editable RM 76.70 BOM, 10-point QA & Viva FAQ
     ├── data/
-    │   ├── blueprintData.ts        # Pins, 11-item BOM, assumptions, QA, rubric & FAQ
-    │   ├── firmwareCode.ts         # Complete KIE1004 procedural Arduino .ino source
-    │   ├── masterPlanData.ts       # 20 beginner steps, P1–B4 wiring & 6-point smoke test
-    │   └── slidesData.ts           # 10 slides & complete layperson spoken scripts
+    │   ├── blueprintData.ts            # Pins, 11-item BOM, assumptions, QA, rubric & FAQ
+    │   ├── firmwareCode.ts             # Complete KIE1004 procedural Arduino .ino source
+    │   ├── masterPlanData.ts           # 20 beginner steps, P1–B4 wiring & 6-point smoke test
+    │   └── slidesData.ts               # 10 slides & complete layperson spoken scripts
     └── lib/
-        ├── parkingEngine.ts        # Pure FSM, EMA filter, 3-buzzer bus & power math
-        ├── bomCalculator.ts        # Live BOM quantity & pricing calculator
-        ├── slidePdfExporter.ts     # Client-side 10-page 16:9 vector PDF generator
-        └── parkingEngine.test.ts   # Automated node:test verification suite
+        ├── parkingEngine.ts            # Pure FSM, EMA filter, 3-buzzer bus & power math
+        ├── bomCalculator.ts            # Live BOM quantity & pricing calculator
+        ├── slidePdfExporter.ts         # Client-side 10-page 16:9 vector PDF generator
+        └── parkingEngine.test.ts       # Automated node:test verification suite
 ```

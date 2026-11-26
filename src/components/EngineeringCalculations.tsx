@@ -19,7 +19,7 @@ export const EngineeringCalculations: React.FC = () => {
   const [activeLedsCount, setActiveLedsCount] = useState<number>(3);
   const [activeBuzzerCount, setActiveBuzzerCount] = useState<number>(0);
   const [pullupDevices, setPullupDevices] = useState<number>(4);
-  const [tariffMins, setTariffMins] = useState<number>(76);
+  const [tariffMins, setTariffMins] = useState<number>(46);
 
   const budget = calculateElectricalBudget({
     resistorOhms,
@@ -31,9 +31,15 @@ export const EngineeringCalculations: React.FC = () => {
   });
 
   const billableMins = Math.max(0, tariffMins - ENGINEERING_CONSTANTS.FREE_PARKING_MINS);
-  const billableHours = billableMins === 0 ? 0 : Math.floor((billableMins + 59) / 60);
+  const billableBlocks =
+    billableMins === 0
+      ? 0
+      : Math.floor(
+          (billableMins + ENGINEERING_CONSTANTS.BILLING_BLOCK_MINS - 1) /
+            ENGINEERING_CONSTANTS.BILLING_BLOCK_MINS
+        );
   const computedFee = calculateParkingFee(tariffMins);
-  const isOverstay = tariffMins > ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
+  const isOverstay = tariffMins >= ENGINEERING_CONSTANTS.MAX_PARKING_LIMIT_MINS;
 
   const mcuPct = Math.min(100, Math.round((budget.mcuTotalWorstCaseMa / 200) * 100));
   const pcfPct = Math.min(100, Math.round((budget.pcf8574SinkWorstCaseMa / 80) * 100));
@@ -375,7 +381,7 @@ export const EngineeringCalculations: React.FC = () => {
                 <rect x="420" y="132" width="240" height="62" fill="#E8F0FE" stroke="#1A73E8" strokeWidth="1.5" />
                 <text x="540" y="154" textAnchor="middle" fill="#174EA6" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">STATE_OCCUPIED</text>
                 <text x="540" y="171" textAnchor="middle" fill="#202124" fontSize="9.5" fontFamily="Inter, sans-serif">Count-Up Starts Cleanly at 00:00</text>
-                <text x="540" y="184" textAnchor="middle" fill="#C5221F" fontSize="9" fontWeight="500" fontFamily="Inter, sans-serif">&gt;180m → 1800 Hz · Danger → 2500 Hz (0x24)</text>
+                <text x="540" y="184" textAnchor="middle" fill="#C5221F" fontSize="9" fontWeight="500" fontFamily="Inter, sans-serif">≥240m (4h) → 1800 Hz · Danger → 2500 Hz (0x24)</text>
 
                 <rect x="20" y="132" width="190" height="62" fill="#FCE8E6" stroke="#C5221F" strokeWidth="1.4" />
                 <text x="115" y="154" textAnchor="middle" fill="#A50E0E" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">STATE_EXITING</text>
@@ -449,7 +455,7 @@ export const EngineeringCalculations: React.FC = () => {
                   Interactive Grace-First Tariff &amp; Overstay Verifier
                 </h3>
                 <p className="text-[11px] font-light text-[#5F6368] mt-0.5">
-                  Verify exact integer ceiling division boundaries and &gt;180 min per-bay passive buzzer trigger (1800 Hz on 0x24).
+                  Verify exact 30-min integer ceiling boundaries (RM 1/30 min) and ≥240 min (4-hour) per-bay passive buzzer trigger (1800 Hz on 0x24).
                 </p>
               </div>
 
@@ -466,14 +472,14 @@ export const EngineeringCalculations: React.FC = () => {
                   id="tariff-slider"
                   type="range"
                   min={0}
-                  max={240}
+                  max={300}
                   step={1}
                   value={tariffMins}
                   onChange={(e) => setTariffMins(Number(e.target.value))}
                   className="m3-slider w-full"
                 />
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {[15, 16, 75, 76, 180, 181].map((preset) => (
+                  {[15, 16, 45, 46, 239, 240, 256].map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -502,11 +508,11 @@ export const EngineeringCalculations: React.FC = () => {
                   <span className="font-mono text-[#202124]">max(0, {tariffMins} − 15) = {billableMins} m</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-[#E8EAED] pt-2">
-                  <span className="font-light text-[#5F6368]">3. Integer Ceiling Division</span>
-                  <span className="font-mono text-[#202124]">({billableMins} + 59) / 60 = {billableHours} hr</span>
+                  <span className="font-light text-[#5F6368]">3. 30-Min Integer Ceiling</span>
+                  <span className="font-mono text-[#202124]">({billableMins} + 29) / 30 = {billableBlocks} blk</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-[#E8EAED] pt-2">
-                  <span className="font-light text-[#5F6368]">4. Payable Fee (RM 3.00/hr)</span>
+                  <span className="font-light text-[#5F6368]">4. Payable Fee (RM 1.00 / 30 min)</span>
                   <span className="font-mono text-sm font-medium text-[#1A73E8]">RM {computedFee.toFixed(2)}</span>
                 </div>
               </div>
@@ -520,7 +526,7 @@ export const EngineeringCalculations: React.FC = () => {
               }`}
             >
               <span className="font-medium">
-                {isOverstay ? 'OVERSTAY EXCEEDED (> 180 m)' : 'WITHIN 3-HOUR LIMIT'}
+                {isOverstay ? 'OVERSTAY ACTIVE (≥ 240 m / 4h)' : 'WITHIN 4-HOUR LIMIT (< 240 m)'}
               </span>
               <span className="font-mono">
                 {isOverstay ? 'Bay Buzzer (0x24): ON 1800 Hz' : 'Bay Buzzer (0x24): SILENT'}

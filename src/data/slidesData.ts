@@ -99,7 +99,7 @@ export const PRESENTATION_SLIDES: PresentationSlide[] = [
       },
       {
         title: '3. Fair Billing & Overstay Alert',
-        body: 'First 15 minutes are free, then RM 3 per started hour. Exceeding 3 hours pulses that bay’s buzzer at a slower 1800 Hz beat.',
+        body: 'First 15 minutes are free, then RM 1 per started 30 minutes. Reaching 4 hours pulses that bay’s buzzer at a slower 1800 Hz beat.',
         accent: 'red',
       },
     ],
@@ -108,7 +108,7 @@ export const PRESENTATION_SLIDES: PresentationSlide[] = [
     stageCue: 'Point across the three columns from left to right as if narrating a real car parking in a shopping mall.',
     estSeconds: 35,
     spokenScript:
-      'Let us look at what an everyday driver experiences. First, as you reverse into a bay, three bright LEDs act like a simple traffic light: green means plenty of room, yellow means slow down, and if you get closer than five centimeters, the red light flashes and that bay’s own buzzer sounds a sharp, rapid warning beep so you stop before hitting the wall. Second, unlike basic sensors that start charging while you are still maneuvering, our system waits until your car stays motionless for five full seconds—and only then starts the overhead timer cleanly at zero. Third, the first fifteen minutes are free for quick drop-offs, after that it is three ringgit per started hour, and staying past three hours triggers a slower, lower-pitched alarm right at that specific bay.',
+      'Let us look at what an everyday driver experiences. First, as you reverse into a bay, three bright LEDs act like a simple traffic light: green means plenty of room, yellow means slow down, and if you get closer than five centimeters, the red light flashes and that bay’s own buzzer sounds a sharp, rapid warning beep so you stop before hitting the wall. Second, unlike basic sensors that start charging while you are still maneuvering, our system waits until your car stays motionless for five full seconds—and only then starts the overhead timer cleanly at zero. Third, the first fifteen minutes are free for quick drop-offs, after that it is one ringgit per started thirty minutes, and reaching four hours triggers a slower, lower-pitched alarm right at that specific bay while continuing the normal rate.',
   },
   {
     id: 'slide-3',
@@ -203,7 +203,7 @@ export const PRESENTATION_SLIDES: PresentationSlide[] = [
       },
       {
         title: '60× Demo Clock (Toggleable)',
-        body: '1 real second equals 1 simulated minute so we can prove 3-hour overstay live in 3 minutes.',
+        body: '1 real second equals 1 simulated minute so we can prove 4-hour overstay live in 4 minutes.',
         accent: 'green',
       },
       {
@@ -212,8 +212,8 @@ export const PRESENTATION_SLIDES: PresentationSlide[] = [
         accent: 'amber',
       },
       {
-        title: 'Grace-First Fee Rule',
-        body: 'Subtracts 15 free minutes first, then rounds up started hours so 16 minutes = RM 3, 75 = RM 3.',
+        title: 'Grace-First 30-Min Fee Rule',
+        body: 'Subtracts 15 free minutes first, then charges RM 1 per started 30 min (16 m = RM 1, 45 m = RM 1, 46 m = RM 2).',
         accent: 'red',
       },
     ],
@@ -222,7 +222,7 @@ export const PRESENTATION_SLIDES: PresentationSlide[] = [
     stageCue: 'Highlight the right-hand conflict-to-resolution matrix—this directly answers the WP2 conflicting requirements rubric.',
     estSeconds: 35,
     spokenScript:
-      'Good engineering is always about balancing competing demands. First, to model a realistic four-meter parking bay on a classroom table, we chose a one-to-twenty scale where twenty centimeters equals four meters. Second, nobody wants to wait three real hours during a five-minute demonstration, so our clock runs sixty times faster—one real second equals one parking minute—and flips back to real time with a single letter command. On the right are the four conflicts we solved: compressing eighteen LCD pins down to two I2C wires, staggering screen updates so sensors never stall, absorbing one-centimeter sensor jitter during our five-second stillness gate, and giving all three bays their own multi-pitch passive buzzers using just one transistor buffer and one PCF8574 chip on the existing I2C bus.',
+      'Good engineering is always about balancing competing demands. First, to model a realistic four-meter parking bay on a classroom table, we chose a one-to-twenty scale where twenty centimeters equals four meters. Second, nobody wants to wait four real hours during a five-minute demonstration, so our clock runs sixty times faster—one real second equals one parking minute—and flips back to real time with a single letter command. On the right are the four conflicts we solved: compressing eighteen LCD pins down to two I2C wires, staggering screen updates so sensors never stall, absorbing one-centimeter sensor jitter during our five-second stillness gate, and giving all three bays their own multi-pitch passive buzzers using just one transistor buffer and one PCF8574 chip on the existing I2C bus.',
   },
   {
     id: 'slide-6',
@@ -261,7 +261,7 @@ writeBuzzerBus(mask);          // Send 1 byte over I2C (0x24)`,
       },
       {
         title: 'Default Arguments & Overloading',
-        body: 'calculateParkingFee() sets 15 m free & RM 3/hr defaults; overloaded printTwoDigits() formats LCD & Serial.',
+        body: 'calculateParkingFee() sets 15 m free & RM 1/30 min defaults; overloaded printTwoDigits() formats LCD & Serial.',
         accent: 'amber',
       },
     ],
@@ -405,14 +405,14 @@ void computeLotSummary(const int states[], int n,
     highlights: [
       { title: 'Min 0–1 · LEDs & Danger Beep', body: 'Slide cars to 15, 8, and 4 cm—confirm Bay 1 rapid 2500 Hz beep while Bays 2–3 stay silent.' },
       { title: 'Min 1–2 · 5-Second Hold', body: 'Nudge a car to prove countdown resets; hold still 5 s to start 00:00 cleanly.' },
-      { title: 'Min 2–3 · Multi-Bay & Fee', body: 'Park all 3 bays independently and show 15 m free → RM 3/hr live LCD count-up.' },
-      { title: 'Min 3–5 · Mixed Buzzers & Q&A', body: 'Trigger Bay 1 Danger + Bay 3 Overstay simultaneously (2000 Hz, 0x24), exit receipt & Q&A.' },
+      { title: 'Min 2–3 · Multi-Bay & Fee', body: 'Park all 3 bays independently and show 15 m free → RM 1/30 min live LCD count-up.' },
+      { title: 'Min 3–5 · Mixed Buzzers & Q&A', body: 'Trigger Bay 1 Danger + Bay 3 Overstay (≥4h) simultaneously (2000 Hz, 0x24), exit receipt & Q&A.' },
     ],
     diagramType: 'demo-timeline',
     diagramCaption: 'All 10 acceptance tests verified prior to demonstration. Thank you—we welcome your questions and live bench testing.',
     stageCue: 'Smile, gesture toward the physical prototype or live simulator, and invite the examiners to test simultaneous Danger + Overstay alerts.',
     estSeconds: 30,
     spokenScript:
-      'Before today, we verified our prototype against a ten-point quality checklist covering our four-device I2C scan, motion resets, jitter immunity, fee boundaries, simultaneous multi-bay buzzers, and a thirty-minute continuous stability run. Right now, we will run a crisp five-minute live demo: first showing the traffic-light LEDs and Bay 1’s rapid 2500-hertz Danger warning while the other two bays stay silent; next nudging a car to prove the five-second stillness reset; then running all three screens independently from free grace into hourly billing; and finally triggering Bay 1 Danger and Bay 3 Overstay at the exact same moment so you can hear both independent rhythms live before printing an itemized exit receipt. Thank you very much—we welcome your questions!',
+      'Before today, we verified our prototype against a ten-point quality checklist covering our four-device I2C scan, motion resets, jitter immunity, fee boundaries, simultaneous multi-bay buzzers, and a thirty-minute continuous stability run. Right now, we will run a crisp five-minute live demo: first showing the traffic-light LEDs and Bay 1’s rapid 2500-hertz Danger warning while the other two bays stay silent; next nudging a car to prove the five-second stillness reset; then running all three screens independently from the fifteen-minute free grace into RM 1 per thirty-minute billing; and finally triggering Bay 1 Danger and Bay 3 four-hour Overstay at the exact same moment so you can hear both independent rhythms live before printing an itemized exit receipt. Thank you very much—we welcome your questions!',
   },
 ];

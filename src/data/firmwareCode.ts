@@ -61,8 +61,9 @@ export const ARDUINO_FIRMWARE_V3 = `/*
  *                             P0 -> Bay 1 (-), P1 -> Bay 2 (-), P2 -> Bay 3 (-)
  *                             Active-LOW sinking: 0 = Sound ON, 1 = Silent
  *       Alert Policy: Red Danger (2-5 cm) = rapid 150 ms beep (2500 Hz solo)
- *                     Overstay (>180 min) = slow 500/1000 ms pulse (1800 Hz solo)
+ *                     Overstay (>=240 min / 4h) = slow 500/1000 ms pulse (1800 Hz solo)
  *                     Mixed simultaneous  = shared 2000 Hz carrier + independent gates
+ *       Tariff Rule : First 15 min free, then RM 1 per started 30-min block
  *   - D0 (RX) / D1 (TX) reserved cleanly for USB upload & 9600-baud Serial Monitor
  * ============================================================================
  */
@@ -105,9 +106,10 @@ const unsigned long EXIT_DEBOUNCE_MS  = 3000UL; // 3.0 s exit confirmation
 const unsigned long PULSE_TIMEOUT_US  = 15000UL;
 
 // Tariff and overstay rules (simulated minutes)
-const int GRACE_MINUTES    = 15;
-const int RATE_RM_PER_HOUR = 3;
-const int OVERSTAY_MIN     = 180;     // 3 simulated hours -> overstay buzzer
+const int GRACE_MINUTES      = 15;
+const int BILLING_BLOCK_MIN  = 30;     // RM 1 per started 30-minute block
+const int RATE_RM_PER_30MIN  = 1;
+const int OVERSTAY_MIN       = 240;    // >= 4 simulated hours -> overstay buzzer
 
 // Hardware Pin Maps using 1D Arrays (W09) and 2D Array (W10)
 const int TRIG_PINS[NUM_BAYS] = { 2, 4, 6 };
@@ -178,7 +180,7 @@ int  getMedianDistance(const int row[], int n);                      // W09 + W1
 int  applySmoothingFilter(int prevCm, int medianCm);                 // W03 + W04
 int  classifyDistanceZone(int distCm);                               // W04
 int  calculateParkingFee(int elapsedMin, int graceMin = GRACE_MINUTES,
-                         int ratePerHour = RATE_RM_PER_HOUR);        // W07 default args
+                         int ratePer30Min = RATE_RM_PER_30MIN);      // W07 default args
 void updateBayMachine(int i, int distCm, unsigned long nowMs,
                       int &revenueRef, int &sessionsRef);            // W08 pass-by-ref (&)
 void updateBayLeds(int bayIdx, int state, int zone,
@@ -391,15 +393,15 @@ int classifyDistanceZone(int distCm) {
   }
 }
 
-// Uses W07 default arguments (graceMin = 15, ratePerHour = 3)
-int calculateParkingFee(int elapsedMin, int graceMin, int ratePerHour) {
+// Uses W07 default arguments (graceMin = 15, ratePer30Min = RM 1 per 30 min)
+int calculateParkingFee(int elapsedMin, int graceMin, int ratePer30Min) {
   if (elapsedMin <= graceMin) {
     return 0;
   }
   int billableMin = elapsedMin - graceMin;
-  // Integer ceiling division: ceil(billableMin / 60) = (billableMin + 59) / 60
-  int billableHours = (billableMin + 59) / 60;
-  return billableHours * ratePerHour;
+  // Integer ceiling division: ceil(billableMin / 30) = (billableMin + 29) / 30
+  int billableBlocks = (billableMin + BILLING_BLOCK_MIN - 1) / BILLING_BLOCK_MIN;
+  return billableBlocks * ratePer30Min;
 }
 
 // ============================================================================
@@ -487,13 +489,13 @@ void updateBayLeds(int bayIdx, int state, int zone,
   bool yOn = false;
   bool rOn = false;
 
-  // Overstay strobe takes visual priority if parked > 180 sim min
+  // Overstay strobe takes visual priority if parked >= 240 sim min (4 hours)
   bool isOverstay = false;
   if (state == STATE_OCCUPIED || state == STATE_EXITING) {
     int simMin = 0;
     int simSec = 0;
     splitSimTime(parkStartMs[bayIdx], nowMs, timeScale, &simMin, &simSec);
-    if (simMin > OVERSTAY_MIN) {
+    if (simMin >= OVERSTAY_MIN) {
       isOverstay = true;
     }
   }
@@ -537,7 +539,7 @@ void updateThreeBayBuzzers(const int states[], const int distArr[],
       int simMin = 0;
       int simSec = 0;
       splitSimTime(startTimes[i], nowMs, timeScale, &simMin, &simSec);
-      if (simMin > OVERSTAY_MIN) {
+      if (simMin >= OVERSTAY_MIN) {
         isOverstay = true;
       }
     }
@@ -663,7 +665,7 @@ void renderSingleLcd(int bayIdx, unsigned long nowMs) {
     int simSec = 0;
     splitSimTime(parkStartMs[bayIdx], nowMs, timeScale, &simMin, &simSec);
     int feeRM = calculateParkingFee(simMin);
-    bool isOverstay = (simMin > OVERSTAY_MIN);
+    bool isOverstay = (simMin >= OVERSTAY_MIN);
 
     displayKey += simMin * 60 + simSec;
     if (displayKey == lastShownKey[bayIdx]) return;
@@ -720,7 +722,7 @@ void computeLotSummary(const int states[], const unsigned long startTimes[],
       int simMin = 0;
       int simSec = 0;
       splitSimTime(startTimes[i], nowMs, timeScale, &simMin, &simSec);
-      if (simMin > OVERSTAY_MIN) {
+      if (simMin >= OVERSTAY_MIN) {
         over++;
       }
     }

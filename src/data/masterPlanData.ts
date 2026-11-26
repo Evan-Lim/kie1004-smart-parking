@@ -611,8 +611,8 @@ export const MASTER_PLAN_STEPS: MasterPlanStep[] = [
     goal: 'Sign off every test case (T01–T10) before demonstration day.',
     actions: [
       'Test T01–T04: Verify 4-device I2C scan (0x24–0x27), empty baseline (0xFF silent), motion-reset during 5 s hold, and clean 00:00 count-up start after 5.0 s stillness.',
-      'Test T05–T06: Park cars at 4 cm, 8 cm, and 15 cm simultaneously → verify ONLY Bay 1 buzzer sounds (2500 Hz rapid, P0=LOW) while Bays 2–3 stay silent; let Bay 3 cross 180 sim min → verify mixed 2000 Hz carrier with Bay 1 rapid (150 ms) & Bay 3 slow (500/1000 ms) simultaneously!',
-      'Test T07–T10: Verify 3.0 s exit debounce & Serial RM 3/hr receipt, test Serial commands (S, T, D, R), verify Insertion Sort rejects a quick hand-wave spike, and run a 30-min stability soak.',
+      'Test T05–T06: Park cars at 4 cm, 8 cm, and 15 cm simultaneously → verify ONLY Bay 1 buzzer sounds (2500 Hz rapid, P0=LOW) while Bays 2–3 stay silent; let Bay 3 reach 240 sim min (4 hours) → verify mixed 2000 Hz carrier with Bay 1 rapid (150 ms) & Bay 3 slow (500/1000 ms) simultaneously!',
+      'Test T07–T10: Verify 3.0 s exit debounce & Serial RM 1/30 min receipt (15 m free grace), test Serial commands (S, T, D, R), verify Insertion Sort rejects a quick hand-wave spike, and run a 30-min stability soak.',
     ],
     expectedOutput: '10/10 QA items checked off in the "BOM, QA & Defense" tab.',
     rookieMistake: 'Skipping the simultaneous mixed-alert test (Bay 1 Danger + Bay 3 Overstay) — verify both distinct cadences run independently on 0x24.',

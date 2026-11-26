@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
-import { Cpu, Check, Layers, Table2 } from 'lucide-react';
+import { Cpu, Check, Layers, Table2, Cable } from 'lucide-react';
 import { PIN_ALLOCATION_TABLE, PinMapping } from '../data/blueprintData';
+import {
+  WiringInterconnectionDiagram,
+  type WiringNetGroup,
+} from './WiringInterconnectionDiagram';
 
 type SchematicGroup = 'all' | 'ultrasonic' | 'leds' | 'i2c' | 'buzzer' | 'uart';
-type SchematicViewTab = 'diagram' | 'table';
+type SchematicViewTab = 'wiring' | 'overview' | 'table';
 
 export const InteractiveSchematic: React.FC = () => {
-  const [viewTab, setViewTab] = useState<SchematicViewTab>('diagram');
+  const [viewTab, setViewTab] = useState<SchematicViewTab>('wiring');
   const [selectedPinId, setSelectedPinId] = useState<string>('buzzer');
   const [activeGroup, setActiveGroup] = useState<SchematicGroup>('all');
+  const [wiringNet, setWiringNet] = useState<WiringNetGroup>('all');
 
   const selectedPin: PinMapping =
     PIN_ALLOCATION_TABLE.find((p) => p.id === selectedPinId) ?? PIN_ALLOCATION_TABLE[0];
@@ -31,6 +36,12 @@ export const InteractiveSchematic: React.FC = () => {
     selectedPinId === 'i2c_sda' ||
     selectedPinId === 'i2c_scl';
 
+  const jumpToPinInWiring = (pin: PinMapping) => {
+    setSelectedPinId(pin.id);
+    setWiringNet(pin.group);
+    setViewTab('wiring');
+  };
+
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
       {/* Dense Top Controls */}
@@ -39,10 +50,10 @@ export const InteractiveSchematic: React.FC = () => {
           <Cpu className="w-4 h-4 text-[#1A73E8] shrink-0" />
           <div className="min-w-0">
             <h2 className="text-[15px] font-normal text-[#202124] leading-tight truncate">
-              20/20 Arduino Uno R3 + PCF8574 (0x24) 3-Passive-Buzzer Schematic
+              20/20 Arduino Uno R3 + PCF8574 (0x24) Pin-to-Pin Schematic
             </h2>
             <p className="text-[11px] font-light text-[#5F6368] truncate">
-              3× HC-SR04 (D2–D7) · 9 LEDs (D8–D13, A0–A2) · A3→2N2222→3× Passive Buzzers ← PCF8574 (0x24) · 3× LCDs (0x27–0x25)
+              3× HC-SR04 (D2–D7) · 9× LEDs + 330 Ω (D8–D13, A0–A2) · A3→1 kΩ→2N2222→3× Passive Buzzers ← PCF8574 (0x24) · 3× LCDs (0x27–0x25)
             </p>
           </div>
         </div>
@@ -52,20 +63,37 @@ export const InteractiveSchematic: React.FC = () => {
             <button
               type="button"
               role="tab"
-              aria-selected={viewTab === 'diagram'}
-              onClick={() => setViewTab('diagram')}
+              data-testid="schematic-tab-wiring"
+              aria-selected={viewTab === 'wiring'}
+              onClick={() => setViewTab('wiring')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer ${
-                viewTab === 'diagram'
+                viewTab === 'wiring'
+                  ? 'bg-white text-[#1A73E8] font-medium border-b-2 border-[#1A73E8]'
+                  : 'text-[#5F6368] hover:text-[#202124]'
+              }`}
+            >
+              <Cable className="w-3.5 h-3.5" />
+              Wiring Interconnections
+            </button>
+            <button
+              type="button"
+              role="tab"
+              data-testid="schematic-tab-overview"
+              aria-selected={viewTab === 'overview'}
+              onClick={() => setViewTab('overview')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer ${
+                viewTab === 'overview'
                   ? 'bg-white text-[#1A73E8] font-medium border-b-2 border-[#1A73E8]'
                   : 'text-[#5F6368] hover:text-[#202124]'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              Schematic &amp; I2C Pads
+              Overview &amp; I2C Pads
             </button>
             <button
               type="button"
               role="tab"
+              data-testid="schematic-tab-table"
               aria-selected={viewTab === 'table'}
               onClick={() => setViewTab('table')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer ${
@@ -79,71 +107,78 @@ export const InteractiveSchematic: React.FC = () => {
             </button>
           </div>
 
-          <div role="group" aria-label="Filter subsystem" className="inline-flex border border-[#DADCE0] bg-[#F4F6F9]">
-            {(
-              [
-                ['all', 'All'],
-                ['i2c', '4× I2C'],
-                ['ultrasonic', '3× US'],
-                ['leds', '9× LED'],
-                ['buzzer', '3× BZ'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveGroup(key)}
-                className={`px-2.5 py-1.5 text-[11px] whitespace-nowrap cursor-pointer ${
-                  activeGroup === key
-                    ? 'bg-white text-[#1A73E8] font-medium'
-                    : 'text-[#5F6368] hover:text-[#202124]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {viewTab !== 'wiring' && (
+            <div role="group" aria-label="Filter subsystem" className="inline-flex border border-[#DADCE0] bg-[#F4F6F9]">
+              {(
+                [
+                  ['all', 'All'],
+                  ['i2c', '4× I2C'],
+                  ['ultrasonic', '3× US'],
+                  ['leds', '9× LED'],
+                  ['buzzer', '3× BZ'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveGroup(key)}
+                  className={`px-2.5 py-1.5 text-[11px] whitespace-nowrap cursor-pointer ${
+                    activeGroup === key
+                      ? 'bg-white text-[#1A73E8] font-medium'
+                      : 'text-[#5F6368] hover:text-[#202124]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* View 1: Interactive SVG Schematic + Pin Inspector & 4-Device I2C Guide */}
-      {viewTab === 'diagram' && (
+      {/* View 1 (Default): Full-Width CAD Wiring Interconnection Diagram */}
+      {viewTab === 'wiring' && (
+        <WiringInterconnectionDiagram
+          activeNet={wiringNet}
+          onSelectNet={setWiringNet}
+        />
+      )}
+
+      {/* View 2: Cleaner High-Level Block Overview + Active Pin Inspector & 4-Device I2C Guide */}
+      {viewTab === 'overview' && (
         <div className="flex-1 min-h-0 overflow-y-auto dash-scroll grid grid-cols-1 xl:grid-cols-12 gap-3 items-start pr-0.5">
           <figure className="xl:col-span-8 bg-white border border-[#DADCE0] p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-light text-[#5F6368]">
-                Fig. 1 — Baseline v3.1 Architecture: Click any subsystem to inspect current &amp; datasheet notes
+                Fig. 1 — System Architecture Overview: Click any subsystem to inspect datasheet limits &amp; notes
               </span>
-              <span className="text-[11px] font-mono text-[#174EA6] bg-[#E8F0FE] border border-[#AECBFA] px-2 py-0.5">
-                20/20 Uno Pins + 4× I2C (0x27–0x24)
+              <span className="text-[11px] font-mono text-[#174EA6]">
+                20/20 Uno Pins · 4× I2C (0x27–0x24)
               </span>
             </div>
 
             <div className="overflow-x-auto">
               <svg
-                viewBox="0 0 920 620"
-                className="w-full min-w-[660px] h-auto select-none"
+                viewBox="0 0 960 640"
+                className="w-full min-w-[680px] h-auto select-none"
                 role="img"
-                aria-label="Interactive 20-pin Arduino Uno R3 schematic with 3 HC-SR04 sensors, 9 LEDs, 3 I2C LCDs, 2N2222 buffer, PCF8574 0x24, and 3 passive buzzers"
+                aria-label="System block overview of 20-pin Arduino Uno R3 with 3 HC-SR04 sensors, 9 LEDs, 3 I2C LCDs, 2N2222 buffer, PCF8574 0x24, and 3 passive buzzers"
               >
-                <rect x="0" y="0" width="920" height="620" fill="#F8FAFC" />
+                <rect x="0" y="0" width="960" height="640" fill="#FAFBFD" />
 
-                <line x1="28" y1="26" x2="28" y2="594" stroke="#C5221F" strokeWidth="2.2" />
-                <text x="16" y="18" fill="#C5221F" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">
-                  +5V
-                </text>
-                <line x1="50" y1="42" x2="50" y2="604" stroke="#202124" strokeWidth="2" />
-                <text x="41" y="34" fill="#202124" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">
-                  GND
-                </text>
+                {/* Clean Vertical Power Trunk with Junction Dots */}
+                <line x1="28" y1="30" x2="28" y2="612" stroke="#C5221F" strokeWidth="2.2" />
+                <text x="15" y="21" fill="#C5221F" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">+5V</text>
+                <line x1="52" y1="44" x2="52" y2="622" stroke="#202124" strokeWidth="2" />
+                <text x="41" y="36" fill="#202124" fontSize="11" fontWeight="500" fontFamily="JetBrains Mono">GND</text>
 
                 {/* Center Arduino Uno R3 */}
                 <g>
-                  <rect x="330" y="30" width="210" height="500" fill="#E8F0FE" stroke="#1A73E8" strokeWidth="1.6" />
-                  <text x="435" y="56" textAnchor="middle" fill="#174EA6" fontSize="15" fontWeight="500" fontFamily="Inter, sans-serif">
+                  <rect x="336" y="30" width="218" height="516" fill="#EBF3FE" stroke="#1A73E8" strokeWidth="1.6" />
+                  <text x="445" y="56" textAnchor="middle" fill="#174EA6" fontSize="15" fontWeight="500" fontFamily="Inter, sans-serif">
                     Arduino Uno R3
                   </text>
-                  <text x="435" y="73" textAnchor="middle" fill="#1A73E8" fontSize="10.5" fontFamily="JetBrains Mono">
+                  <text x="445" y="73" textAnchor="middle" fill="#1A73E8" fontSize="10.5" fontFamily="JetBrains Mono">
                     ATmega328P · 20/20 Pins
                   </text>
 
@@ -152,17 +187,17 @@ export const InteractiveSchematic: React.FC = () => {
                     { y: 126, label: 'GND', color: '#202124' },
                     { y: 162, label: 'D2 (TRIG_1)', id: 'trig1' },
                     { y: 184, label: 'D3 (ECHO_1)', id: 'echo1' },
-                    { y: 234, label: 'D4 (TRIG_2)', id: 'trig2' },
-                    { y: 256, label: 'D5 (ECHO_2)', id: 'echo2' },
-                    { y: 306, label: 'D6 (TRIG_3)', id: 'trig3' },
-                    { y: 328, label: 'D7 (ECHO_3)', id: 'echo3' },
-                    { y: 392, label: 'D0 (RX)', id: 'uart' },
-                    { y: 414, label: 'D1 (TX)', id: 'uart' },
+                    { y: 236, label: 'D4 (TRIG_2)', id: 'trig2' },
+                    { y: 258, label: 'D5 (ECHO_2)', id: 'echo2' },
+                    { y: 310, label: 'D6 (TRIG_3)', id: 'trig3' },
+                    { y: 332, label: 'D7 (ECHO_3)', id: 'echo3' },
+                    { y: 398, label: 'D0 (RX)', id: 'uart' },
+                    { y: 420, label: 'D1 (TX)', id: 'uart' },
                   ].map((pin) => (
                     <g key={pin.label}>
-                      <circle cx="330" cy={pin.y} r="3.5" fill={pin.color ?? '#1A73E8'} />
+                      <circle cx="336" cy={pin.y} r="3.5" fill={pin.color ?? '#1A73E8'} />
                       <text
-                        x="341"
+                        x="348"
                         y={pin.y + 4}
                         fill={pin.color ?? '#202124'}
                         fontSize="10.5"
@@ -178,20 +213,20 @@ export const InteractiveSchematic: React.FC = () => {
                     { y: 106, label: 'D8 (LED_G1)', id: 'led_g1' },
                     { y: 124, label: 'D9 (LED_Y1)', id: 'led_y1' },
                     { y: 142, label: 'D10 (LED_R1)', id: 'led_r1' },
-                    { y: 174, label: 'D11 (LED_G2)', id: 'led_g2' },
-                    { y: 192, label: 'D12 (LED_Y2)', id: 'led_y2' },
-                    { y: 210, label: 'D13 (LED_R2)', id: 'led_r2' },
-                    { y: 242, label: 'A0 (LED_G3)', id: 'led_g3' },
-                    { y: 260, label: 'A1 (LED_Y3)', id: 'led_y3' },
-                    { y: 278, label: 'A2 (LED_R3)', id: 'led_r3' },
-                    { y: 332, label: 'A3 (TONE_BUS)', id: 'buzzer' },
-                    { y: 432, label: 'A4 (I2C SDA)', id: 'i2c_sda' },
-                    { y: 462, label: 'A5 (I2C SCL)', id: 'i2c_scl' },
+                    { y: 176, label: 'D11 (LED_G2)', id: 'led_g2' },
+                    { y: 194, label: 'D12 (LED_Y2)', id: 'led_y2' },
+                    { y: 212, label: 'D13 (LED_R2)', id: 'led_r2' },
+                    { y: 246, label: 'A0 (LED_G3)', id: 'led_g3' },
+                    { y: 264, label: 'A1 (LED_Y3)', id: 'led_y3' },
+                    { y: 282, label: 'A2 (LED_R3)', id: 'led_r3' },
+                    { y: 344, label: 'A3 (TONE_BUS)', id: 'buzzer' },
+                    { y: 444, label: 'A4 (I2C SDA)', id: 'i2c_sda' },
+                    { y: 474, label: 'A5 (I2C SCL)', id: 'i2c_scl' },
                   ].map((pin) => (
                     <g key={pin.label}>
-                      <circle cx="540" cy={pin.y} r="3.5" fill={pin.id === 'buzzer' ? '#C5221F' : '#1A73E8'} />
+                      <circle cx="554" cy={pin.y} r="3.5" fill={pin.id === 'buzzer' ? '#C5221F' : '#1A73E8'} />
                       <text
-                        x="529"
+                        x="542"
                         y={pin.y + 4}
                         textAnchor="end"
                         fill={pin.id === 'buzzer' ? '#A50E0E' : '#202124'}
@@ -205,37 +240,41 @@ export const InteractiveSchematic: React.FC = () => {
                   ))}
                 </g>
 
-                <line x1="28" y1="106" x2="330" y2="106" stroke="#C5221F" strokeWidth="1.6" />
-                <line x1="50" y1="126" x2="330" y2="126" stroke="#202124" strokeWidth="1.5" />
+                <line x1="28" y1="106" x2="336" y2="106" stroke="#C5221F" strokeWidth="1.6" />
+                <circle cx="28" cy="106" r="3" fill="#C5221F" />
+                <line x1="52" y1="126" x2="336" y2="126" stroke="#202124" strokeWidth="1.5" />
+                <circle cx="52" cy="126" r="3" fill="#202124" />
 
                 {/* 3x HC-SR04 Sensors */}
                 {[
                   { bay: 1, y: 146, trigId: 'trig1', echoId: 'echo1', ty: 162, ey: 184 },
-                  { bay: 2, y: 218, trigId: 'trig2', echoId: 'echo2', ty: 234, ey: 256 },
-                  { bay: 3, y: 290, trigId: 'trig3', echoId: 'echo3', ty: 306, ey: 328 },
+                  { bay: 2, y: 220, trigId: 'trig2', echoId: 'echo2', ty: 236, ey: 258 },
+                  { bay: 3, y: 294, trigId: 'trig3', echoId: 'echo3', ty: 310, ey: 332 },
                 ].map((s) => {
                   const active = isHighlighted('ultrasonic', s.trigId) || selectedPinId === s.echoId;
                   return (
                     <g key={s.bay} onClick={() => setSelectedPinId(s.trigId)} className="cursor-pointer">
                       <rect
-                        x="90"
+                        x="92"
                         y={s.y}
-                        width="156"
-                        height="56"
+                        width="160"
+                        height="58"
                         fill={active ? '#E6F4EA' : '#FFFFFF'}
                         stroke={active ? '#137333' : '#9AA0A6'}
                         strokeWidth={active ? '1.8' : '1.2'}
                       />
-                      <text x="168" y={s.y + 22} textAnchor="middle" fill="#137333" fontSize="11.5" fontWeight="500" fontFamily="Inter, sans-serif">
+                      <text x="172" y={s.y + 23} textAnchor="middle" fill="#137333" fontSize="11.5" fontWeight="500" fontFamily="Inter, sans-serif">
                         HC-SR04 (Bay {s.bay})
                       </text>
-                      <text x="168" y={s.y + 40} textAnchor="middle" fill="#5F6368" fontSize="9.8" fontFamily="JetBrains Mono">
+                      <text x="172" y={s.y + 42} textAnchor="middle" fill="#5F6368" fontSize="9.8" fontFamily="JetBrains Mono">
                         5V · 40 kHz · 15° Cone
                       </text>
-                      <line x1="28" y1={s.y + 18} x2="90" y2={s.y + 18} stroke="#C5221F" strokeWidth="1.3" />
-                      <line x1="50" y1={s.y + 38} x2="90" y2={s.y + 38} stroke="#202124" strokeWidth="1.3" />
-                      <line x1="246" y1={s.ty} x2="330" y2={s.ty} stroke="#1A73E8" strokeWidth={active ? '2.2' : '1.3'} />
-                      <line x1="246" y1={s.ey} x2="330" y2={s.ey} stroke="#137333" strokeWidth={active ? '2.2' : '1.3'} />
+                      <line x1="28" y1={s.y + 18} x2="92" y2={s.y + 18} stroke="#C5221F" strokeWidth="1.3" />
+                      <circle cx="28" cy={s.y + 18} r="2.8" fill="#C5221F" />
+                      <line x1="52" y1={s.y + 40} x2="92" y2={s.y + 40} stroke="#202124" strokeWidth="1.3" />
+                      <circle cx="52" cy={s.y + 40} r="2.8" fill="#202124" />
+                      <line x1="252" y1={s.ty} x2="336" y2={s.ty} stroke="#1A73E8" strokeWidth={active ? '2.2' : '1.4'} />
+                      <line x1="252" y1={s.ey} x2="336" y2={s.ey} stroke="#137333" strokeWidth={active ? '2.2' : '1.4'} />
                     </g>
                   );
                 })}
@@ -243,59 +282,61 @@ export const InteractiveSchematic: React.FC = () => {
                 {/* USB Serial */}
                 <g onClick={() => setSelectedPinId('uart')} className="cursor-pointer">
                   <rect
-                    x="90"
-                    y="376"
-                    width="156"
-                    height="52"
+                    x="92"
+                    y="382"
+                    width="160"
+                    height="54"
                     fill={isHighlighted('uart', 'uart') ? '#E8F0FE' : '#FFFFFF'}
                     stroke={isHighlighted('uart', 'uart') ? '#1A73E8' : '#9AA0A6'}
                     strokeWidth="1.3"
                   />
-                  <text x="168" y="398" textAnchor="middle" fill="#202124" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
+                  <text x="172" y="404" textAnchor="middle" fill="#202124" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
                     PC USB Serial (9600)
                   </text>
-                  <text x="168" y="415" textAnchor="middle" fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
+                  <text x="172" y="422" textAnchor="middle" fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
                     S, T, D, R &amp; Receipts
                   </text>
-                  <line x1="246" y1="392" x2="330" y2="392" stroke="#5F6368" strokeWidth="1.3" />
-                  <line x1="246" y1="414" x2="330" y2="414" stroke="#5F6368" strokeWidth="1.3" />
+                  <line x1="252" y1="398" x2="336" y2="398" stroke="#5F6368" strokeWidth="1.3" strokeDasharray="4 2" />
+                  <line x1="252" y1="420" x2="336" y2="420" stroke="#5F6368" strokeWidth="1.3" strokeDasharray="4 2" />
                 </g>
 
                 {/* Dual Decoupling */}
                 <g>
-                  <rect x="90" y="450" width="200" height="68" fill="#FEF7E0" stroke="#B06000" strokeWidth="1.3" />
-                  <text x="190" y="471" textAnchor="middle" fill="#7A4100" fontSize="10.5" fontWeight="500" fontFamily="Inter, sans-serif">
-                    Dual Rail Decoupling (v3.1)
+                  <rect x="92" y="458" width="204" height="68" fill="#FEF7E0" stroke="#B06000" strokeWidth="1.3" />
+                  <text x="194" y="479" textAnchor="middle" fill="#7A4100" fontSize="10.5" fontWeight="500" fontFamily="Inter, sans-serif">
+                    Dual Rail Decoupling
                   </text>
-                  <text x="190" y="488" textAnchor="middle" fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
+                  <text x="194" y="496" textAnchor="middle" fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
                     2× 100 µF + 2× 0.1 µF Ceramic
                   </text>
-                  <text x="190" y="505" textAnchor="middle" fill="#5F6368" fontSize="9" fontFamily="Inter, sans-serif">
+                  <text x="194" y="513" textAnchor="middle" fill="#5F6368" fontSize="9" fontFamily="Inter, sans-serif">
                     Near 3× HC-SR04 &amp; 4× I2C + 2N2222
                   </text>
-                  <line x1="28" y1="472" x2="90" y2="472" stroke="#C5221F" strokeWidth="1.3" />
-                  <line x1="50" y1="496" x2="90" y2="496" stroke="#202124" strokeWidth="1.3" />
+                  <line x1="28" y1="480" x2="92" y2="480" stroke="#C5221F" strokeWidth="1.3" />
+                  <circle cx="28" cy="480" r="2.8" fill="#C5221F" />
+                  <line x1="52" y1="504" x2="92" y2="504" stroke="#202124" strokeWidth="1.3" />
+                  <circle cx="52" cy="504" r="2.8" fill="#202124" />
                 </g>
 
                 {/* Power Summary Box */}
                 <g>
-                  <rect x="90" y="534" width="200" height="62" fill="#E6F4EA" stroke="#137333" strokeWidth="1.2" />
-                  <text x="190" y="553" textAnchor="middle" fill="#137333" fontSize="10" fontWeight="500" fontFamily="Inter, sans-serif">
+                  <rect x="92" y="544" width="204" height="68" fill="#E6F4EA" stroke="#137333" strokeWidth="1.2" />
+                  <text x="194" y="564" textAnchor="middle" fill="#137333" fontSize="10.2" fontWeight="500" fontFamily="Inter, sans-serif">
                     Verified Peak Thermal Margins
                   </text>
-                  <text x="190" y="570" textAnchor="middle" fill="#202124" fontSize="9.3" fontFamily="JetBrains Mono">
+                  <text x="194" y="582" textAnchor="middle" fill="#202124" fontSize="9.3" fontFamily="JetBrains Mono">
                     MCU 100.3/200 · PCF 45/80 mA
                   </text>
-                  <text x="190" y="585" textAnchor="middle" fill="#202124" fontSize="9.3" fontFamily="JetBrains Mono">
+                  <text x="194" y="598" textAnchor="middle" fill="#202124" fontSize="9.3" fontFamily="JetBrains Mono">
                     2N2222 49.3/600 · USB 285.6 mA
                   </text>
                 </g>
 
                 {/* 3x LED Banks */}
                 {[
-                  { bay: 1, y: 92, pins: [106, 124, 142], id: 'led_g1' },
-                  { bay: 2, y: 160, pins: [174, 192, 210], id: 'led_g2' },
-                  { bay: 3, y: 228, pins: [242, 260, 278], id: 'led_g3' },
+                  { bay: 1, y: 90, pins: [106, 124, 142], id: 'led_g1' },
+                  { bay: 2, y: 160, pins: [176, 194, 212], id: 'led_g2' },
+                  { bay: 3, y: 230, pins: [246, 264, 282], id: 'led_g3' },
                 ].map((bank) => {
                   const active =
                     activeGroup === 'leds' ||
@@ -303,32 +344,32 @@ export const InteractiveSchematic: React.FC = () => {
                   return (
                     <g key={bank.bay} onClick={() => setSelectedPinId(bank.id)} className="cursor-pointer">
                       <rect
-                        x="616"
+                        x="636"
                         y={bank.y}
-                        width="278"
-                        height="60"
+                        width="294"
+                        height="62"
                         fill={active ? '#E8F0FE' : '#FFFFFF'}
                         stroke={active ? '#1A73E8' : '#9AA0A6'}
                         strokeWidth={active ? '1.8' : '1.2'}
                       />
-                      <text x="630" y={bank.y + 18} fill="#202124" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
-                        Bay {bank.bay} LEDs (3× 330 Ω)
+                      <text x="650" y={bank.y + 19} fill="#202124" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
+                        Bay {bank.bay} LEDs (3× 330 Ω in series)
                       </text>
-                      <text x="630" y={bank.y + 34} fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
-                        G 8.5 · Y 9.1 · R 9.1 mA
+                      <text x="650" y={bank.y + 36} fill="#5F6368" fontSize="9.5" fontFamily="JetBrains Mono">
+                        G 8.5 mA · Y 9.1 mA · R 9.1 mA
                       </text>
-                      <circle cx="826" cy={bank.y + 22} r="5.5" fill="#188038" />
-                      <circle cx="848" cy={bank.y + 22} r="5.5" fill="#F9AB00" />
-                      <circle cx="870" cy={bank.y + 22} r="5.5" fill="#D93025" />
-                      <text x="630" y={bank.y + 50} fill="#5F6368" fontSize="9.3" fontFamily="Inter, sans-serif">
+                      <circle cx="860" cy={bank.y + 22} r="5.5" fill="#188038" />
+                      <circle cx="882" cy={bank.y + 22} r="5.5" fill="#F9AB00" />
+                      <circle cx="904" cy={bank.y + 22} r="5.5" fill="#D93025" />
+                      <text x="650" y={bank.y + 52} fill="#5F6368" fontSize="9.3" fontFamily="Inter, sans-serif">
                         Mounted directly above Bay {bank.bay} HC-SR04
                       </text>
                       {bank.pins.map((py, pIdx) => (
                         <line
                           key={py}
-                          x1="540"
+                          x1="554"
                           y1={py}
-                          x2="616"
+                          x2="636"
                           y2={py}
                           stroke={pIdx === 0 ? '#188038' : pIdx === 1 ? '#B06000' : '#D93025'}
                           strokeWidth={active ? '2' : '1.3'}
@@ -338,62 +379,68 @@ export const InteractiveSchematic: React.FC = () => {
                   );
                 })}
 
-                {/* Pin A3 -> 1k -> 2N2222 Emitter Follower -> 3x Passive Buzzers (+) <- PCF8574 (0x24) */}
+                {/* Pin A3 -> 1k -> 2N2222 -> 3x Passive Buzzers <- PCF8574 (0x24) */}
                 <g onClick={() => setSelectedPinId('buzzer')} className="cursor-pointer">
                   <line
-                    x1="540"
-                    y1="332"
-                    x2="616"
-                    y2="332"
+                    x1="554"
+                    y1="344"
+                    x2="636"
+                    y2="344"
                     stroke="#C5221F"
                     strokeWidth={buzzerHighlight ? '2.4' : '1.6'}
                   />
                   <rect
-                    x="616"
-                    y="298"
-                    width="278"
-                    height="92"
+                    x="636"
+                    y="304"
+                    width="294"
+                    height="98"
                     fill={buzzerHighlight ? '#FCE8E6' : '#FFFFFF'}
                     stroke={buzzerHighlight ? '#C5221F' : '#9AA0A6'}
                     strokeWidth={buzzerHighlight ? '1.8' : '1.2'}
                   />
-                  <text x="630" y="317" fill="#A50E0E" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
+                  <text x="650" y="324" fill="#A50E0E" fontSize="11" fontWeight="500" fontFamily="Inter, sans-serif">
                     2N2222 Tone Buffer → 3× Passive Buzzers
                   </text>
-                  <text x="630" y="333" fill="#5F6368" fontSize="9.2" fontFamily="JetBrains Mono">
+                  <text x="650" y="340" fill="#5F6368" fontSize="9.2" fontFamily="JetBrains Mono">
                     A3 → 1kΩ → B · C→+5V · E→TONE_BUS (+1kΩ GND)
                   </text>
-                  <text x="630" y="348" fill="#A50E0E" fontSize="9.2" fontFamily="JetBrains Mono">
-                    2500Hz Danger · 1800Hz Overstay · 2000Hz Mix
+                  <text x="650" y="356" fill="#A50E0E" fontSize="9.2" fontFamily="JetBrains Mono">
+                    2500Hz Danger · 1800Hz ≥4h · 2000Hz Mix
                   </text>
                   {[
-                    { bay: 1, x: 630, pin: 'P0' },
-                    { bay: 2, x: 718, pin: 'P1' },
-                    { bay: 3, x: 806, pin: 'P2' },
+                    { bay: 1, x: 650, pin: 'P0' },
+                    { bay: 2, x: 742, pin: 'P1' },
+                    { bay: 3, x: 834, pin: 'P2' },
                   ].map((bz) => (
                     <g key={bz.bay}>
-                      <rect x={bz.x} y="357" width="76" height="24" fill="#FFFFFF" stroke="#C5221F" strokeWidth="1" />
-                      <text x={bz.x + 38} y="372" textAnchor="middle" fill="#202124" fontSize="9.2" fontFamily="JetBrains Mono">
-                        BZ{bz.bay} (+)←{bz.pin}
+                      <rect x={bz.x} y="366" width="80" height="24" fill="#FFFFFF" stroke="#C5221F" strokeWidth="1" />
+                      <text x={bz.x + 40} y="381" textAnchor="middle" fill="#202124" fontSize="9.2" fontFamily="JetBrains Mono">
+                        BZ{bz.bay} (−)→{bz.pin}
                       </text>
                     </g>
                   ))}
-                  {/* Gate return line from PCF8574 0x24 up to 3x Passive Buzzers (-) */}
-                  <line x1="876" y1="390" x2="876" y2="554" stroke="#C5221F" strokeWidth="1.5" strokeDasharray="4 2" />
+                  {/* Orthogonal Gate Return Bus from PCF8574 (0x24) */}
+                  <polyline
+                    points="930,586 946,586 946,378 930,378"
+                    fill="none"
+                    stroke="#C5221F"
+                    strokeWidth="1.6"
+                    strokeDasharray="4 2"
+                  />
                 </g>
 
                 {/* Shared I2C Bus -> 3x LCDs + PCF8574 (0x24) */}
                 <g onClick={() => setSelectedPinId('i2c_sda')} className="cursor-pointer">
-                  <line x1="540" y1="432" x2="598" y2="432" stroke="#1A73E8" strokeWidth={isHighlighted('i2c', 'i2c_sda') ? '2.6' : '1.8'} />
-                  <line x1="540" y1="462" x2="586" y2="462" stroke="#7B1FA2" strokeWidth={isHighlighted('i2c', 'i2c_scl') ? '2.6' : '1.8'} />
-                  <line x1="598" y1="414" x2="598" y2="574" stroke="#1A73E8" strokeWidth="1.8" />
-                  <line x1="586" y1="426" x2="586" y2="586" stroke="#7B1FA2" strokeWidth="1.8" />
+                  <line x1="554" y1="444" x2="612" y2="444" stroke="#1A73E8" strokeWidth={isHighlighted('i2c', 'i2c_sda') ? '2.6' : '1.8'} />
+                  <line x1="554" y1="474" x2="598" y2="474" stroke="#7B1FA2" strokeWidth={isHighlighted('i2c', 'i2c_scl') ? '2.6' : '1.8'} />
+                  <line x1="612" y1="428" x2="612" y2="584" stroke="#1A73E8" strokeWidth="1.8" />
+                  <line x1="598" y1="442" x2="598" y2="598" stroke="#7B1FA2" strokeWidth="1.8" />
 
                   {[
-                    { title: 'Bay 1 16×2 I2C LCD (0x27)', sub: 'PCF8574: A0/A1/A2 Open · ~25 mA', y: 402, isBuzzerIc: false },
-                    { title: 'Bay 2 16×2 I2C LCD (0x26)', sub: 'PCF8574: Bridge A0 · ~25 mA', y: 452, isBuzzerIc: false },
-                    { title: 'Bay 3 16×2 I2C LCD (0x25)', sub: 'PCF8574: Bridge A1 · ~25 mA', y: 502, isBuzzerIc: false },
-                    { title: 'PCF8574 Buzzer Expander (0x24)', sub: 'Bridge A0+A1 · P0/P1/P2 Active-LOW Sink', y: 552, isBuzzerIc: true },
+                    { title: 'Bay 1 16×2 I2C LCD (0x27)', sub: 'PCF8574: A0/A1/A2 Open · ~25 mA', y: 414, isBuzzerIc: false },
+                    { title: 'Bay 2 16×2 I2C LCD (0x26)', sub: 'PCF8574: Bridge A0 · ~25 mA', y: 466, isBuzzerIc: false },
+                    { title: 'Bay 3 16×2 I2C LCD (0x25)', sub: 'PCF8574: Bridge A1 · ~25 mA', y: 518, isBuzzerIc: false },
+                    { title: 'PCF8574 Buzzer Expander (0x24)', sub: 'Bridge A0+A1 · P0/P1/P2 Active-LOW Sink', y: 570, isBuzzerIc: true },
                   ].map((dev) => {
                     const active = dev.isBuzzerIc
                       ? buzzerHighlight
@@ -406,20 +453,22 @@ export const InteractiveSchematic: React.FC = () => {
                           setSelectedPinId(dev.isBuzzerIc ? 'buzzer' : 'i2c_sda');
                         }}
                       >
-                        <line x1="598" y1={dev.y + 14} x2="616" y2={dev.y + 14} stroke="#1A73E8" strokeWidth="1.5" />
-                        <line x1="586" y1={dev.y + 28} x2="616" y2={dev.y + 28} stroke="#7B1FA2" strokeWidth="1.5" />
+                        <line x1="612" y1={dev.y + 14} x2="636" y2={dev.y + 14} stroke="#1A73E8" strokeWidth="1.5" />
+                        <circle cx="612" cy={dev.y + 14} r="2.8" fill="#1A73E8" />
+                        <line x1="598" y1={dev.y + 28} x2="636" y2={dev.y + 28} stroke="#7B1FA2" strokeWidth="1.5" />
+                        <circle cx="598" cy={dev.y + 28} r="2.8" fill="#7B1FA2" />
                         <rect
-                          x="616"
+                          x="636"
                           y={dev.y}
-                          width="278"
-                          height="42"
+                          width="294"
+                          height="44"
                           fill={dev.isBuzzerIc ? (active ? '#FCE8E6' : '#FFF8F7') : active ? '#E8F0FE' : '#FFFFFF'}
                           stroke={dev.isBuzzerIc ? '#C5221F' : active ? '#1A73E8' : '#9AA0A6'}
                           strokeWidth={active ? '1.8' : '1.2'}
                         />
                         <text
-                          x="630"
-                          y={dev.y + 17}
+                          x="650"
+                          y={dev.y + 18}
                           fill={dev.isBuzzerIc ? '#A50E0E' : '#174EA6'}
                           fontSize="10.8"
                           fontWeight="500"
@@ -427,7 +476,7 @@ export const InteractiveSchematic: React.FC = () => {
                         >
                           {dev.title}
                         </text>
-                        <text x="630" y={dev.y + 32} fill="#5F6368" fontSize="9.2" fontFamily="JetBrains Mono">
+                        <text x="650" y={dev.y + 34} fill="#5F6368" fontSize="9.2" fontFamily="JetBrains Mono">
                           {dev.sub}
                         </text>
                       </g>
@@ -463,6 +512,13 @@ export const InteractiveSchematic: React.FC = () => {
                   <dd className="font-light text-[#3C4043] leading-relaxed mt-0.5">{selectedPin.datasheetNote}</dd>
                 </div>
               </dl>
+              <button
+                type="button"
+                onClick={() => jumpToPinInWiring(selectedPin)}
+                className="w-full py-1.5 text-xs font-medium bg-[#E8F0FE] border border-[#AECBFA] text-[#174EA6] hover:bg-[#D2E3FC] cursor-pointer"
+              >
+                Trace this Net in Wiring Interconnections →
+              </button>
             </div>
 
             <div className="bg-white border border-[#DADCE0] p-4 space-y-2.5">
@@ -531,7 +587,7 @@ export const InteractiveSchematic: React.FC = () => {
         </div>
       )}
 
-      {/* View 2: 20-Pin Booktabs Table */}
+      {/* View 3: 20-Pin Booktabs Table */}
       {viewTab === 'table' && (
         <div className="flex-1 min-h-0 overflow-y-auto dash-scroll bg-white border border-[#DADCE0] p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
@@ -539,7 +595,7 @@ export const InteractiveSchematic: React.FC = () => {
               Table 1 — Complete 20-Pin Allocation Mapping (Arduino Uno R3 + PCF8574 0x24)
             </h3>
             <span className="text-xs font-light text-[#5F6368]">
-              Click any row to highlight &amp; inspect in Figure 1
+              Click any row to highlight its copper net in Wiring Interconnections
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -548,7 +604,7 @@ export const InteractiveSchematic: React.FC = () => {
                 <tr className="text-[#202124]">
                   <th className="py-2 pr-4 font-medium">Arduino Pin</th>
                   <th className="py-2 pr-4 font-medium">Signal Name</th>
-                  <th className="py-2 pr-4 font-medium">Connected Component (v3.1)</th>
+                  <th className="py-2 pr-4 font-medium">Connected Component</th>
                   <th className="py-2 pr-4 font-medium">Mode</th>
                   <th className="py-2 text-right font-medium">Current Load</th>
                 </tr>
@@ -559,10 +615,7 @@ export const InteractiveSchematic: React.FC = () => {
                   return (
                     <tr
                       key={pin.id}
-                      onClick={() => {
-                        setSelectedPinId(pin.id);
-                        setViewTab('diagram');
-                      }}
+                      onClick={() => jumpToPinInWiring(pin)}
                       className={`cursor-pointer transition-colors ${
                         isSelected ? 'bg-[#E8F0FE]' : 'hover:bg-[#F8F9FA]'
                       }`}

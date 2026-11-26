@@ -77,8 +77,8 @@ const NAV_TABS: NavTabItem[] = [
   {
     id: 'schematic',
     label: 'Schematic & Pins',
-    meta: '20/20+0x24',
-    sectionTitle: '20-Pin Arduino Uno + PCF8574 (0x24) 3-Buzzer Schematic',
+    meta: 'CAD + 0x24',
+    sectionTitle: 'CAD Wiring Interconnections, 20-Pin Uno & PCF8574 (0x24) Schematic',
     icon: Cpu,
   },
   {
